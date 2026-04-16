@@ -1,0 +1,105 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile with role and contact info",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "Firebase Auth UID" },
+        "name": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "role": { "type": "string", "enum": ["DIRECTOR", "MANAGER", "ACCOUNTANT", "ENGINEER"] },
+        "avatar": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "name", "email", "role"]
+    },
+    "Project": {
+      "title": "Project",
+      "description": "Construction project details",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "status": { "type": "string", "enum": ["ACTIVE", "COMPLETED", "ON_HOLD"] },
+        "priority": { "type": "string", "enum": ["LOW", "MEDIUM", "HIGH"] },
+        "contractValue": { "type": "number" },
+        "startDate": { "type": "string", "format": "date" },
+        "endDate": { "type": "string", "format": "date" },
+        "ownerUid": { "type": "string" },
+        "memberUids": { "type": "array", "items": { "type": "string" } }
+      },
+      "required": ["id", "name", "status", "ownerUid", "memberUids"]
+    },
+    "ProjectMember": {
+      "title": "Project Member",
+      "description": "User with specific role in a project",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "name": { "type": "string" },
+        "role": { "type": "string", "enum": ["DIRECTOR", "MANAGER", "ACCOUNTANT", "ENGINEER"] },
+        "avatar": { "type": "string" },
+        "joinedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "name", "role"]
+    },
+    "Task": {
+      "title": "Task",
+      "description": "Project task or milestone",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "projectId": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "status": { "type": "string", "enum": ["PENDING", "IN_PROGRESS", "COMPLETED", "BLOCKED"] },
+        "priority": { "type": "string", "enum": ["LOW", "MEDIUM", "HIGH"] },
+        "assignedTo": { "type": "string", "description": "User UID" },
+        "dueDate": { "type": "string", "format": "date" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "projectId", "title", "status"]
+    },
+    "Comment": {
+      "title": "Comment",
+      "description": "Comment on a document or task",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "targetId": { "type": "string", "description": "ID of the document or task" },
+        "targetType": { "type": "string", "enum": ["DOCUMENT", "TASK"] },
+        "authorUid": { "type": "string" },
+        "authorName": { "type": "string" },
+        "text": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "targetId", "targetType", "authorUid", "text"]
+    },
+    "Notification": {
+      "title": "Notification",
+      "description": "User notification for updates",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "recipientUid": { "type": "string" },
+        "title": { "type": "string" },
+        "message": { "type": "string" },
+        "type": { "type": "string", "enum": ["TASK_ASSIGNED", "DOC_UPLOADED", "TASK_COMPLETED", "COMMENT_ADDED"] },
+        "relatedId": { "type": "string" },
+        "isRead": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "recipientUid", "title", "message", "isRead"]
+    }
+  },
+  "firestore": {
+    "/users/{uid}": { "schema": "User", "description": "User profiles" },
+    "/projects/{projectId}": { "schema": "Project", "description": "Project records" },
+    "/projects/{projectId}/members/{memberUid}": { "schema": "ProjectMember", "description": "Project members and their roles" },
+    "/projects/{projectId}/tasks/{taskId}": { "schema": "Task", "description": "Project tasks" },
+    "/projects/{projectId}/documents/{docId}": { "schema": "ProjectDocument", "description": "Project documents" },
+    "/projects/{projectId}/comments/{commentId}": { "schema": "Comment", "description": "Comments on project entities" },
+    "/users/{uid}/notifications/{notifId}": { "schema": "Notification", "description": "User-specific notifications" }
+  }
+}

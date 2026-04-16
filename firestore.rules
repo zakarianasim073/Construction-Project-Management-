@@ -1,0 +1,117 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    // Collection: users
+    // Document ID: uid
+    // Fields: uid, name, email, role, avatar, createdAt
+    //
+    // Collection: projects
+    // Document ID: projectId
+    // Fields: id, name, status, priority, contractValue, startDate, endDate, ownerUid
+    //
+    // Collection: projects/{projectId}/tasks
+    // Document ID: taskId
+    // Fields: id, projectId, title, description, status, priority, assignedTo, dueDate, createdAt
+    //
+    // Collection: projects/{projectId}/documents
+    // Document ID: docId
+    // Fields: id, name, type, category, module, uploadDate, size, url, content, isAnalyzed, tags
+    //
+    // Collection: projects/{projectId}/comments
+    // Document ID: commentId
+    // Fields: id, targetId, targetType, authorUid, authorName, text, createdAt
+    //
+    // Collection: users/{uid}/notifications
+    // Document ID: notifId
+    // Fields: id, recipientUid, title, message, type, relatedId, isRead, createdAt
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && 
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'DIRECTOR' ||
+         (request.auth.token.email == "z.nasim073@gmail.com" && request.auth.token.email_verified == true));
+    }
+
+    function isProjectMember(projectId) {
+      let project = get(/databases/$(database)/documents/projects/$(projectId)).data;
+      return isAuthenticated() && (request.auth.uid in project.memberUids || project.ownerUid == request.auth.uid);
+    }
+
+    function isProjectAdmin(projectId) {
+      let project = get(/databases/$(database)/documents/projects/$(projectId)).data;
+      return isAuthenticated() && (
+        project.ownerUid == request.auth.uid || 
+        get(/databases/$(database)/documents/projects/$(projectId)/members/$(request.auth.uid)).data.role in ['DIRECTOR', 'MANAGER']
+      );
+    }
+
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{uid} {
+      allow read: if isAuthenticated();
+      allow create: if isOwner(uid) && hasRequiredFields(['uid', 'name', 'email', 'role']);
+      allow update: if isOwner(uid) || isAdmin();
+    }
+
+    match /projects/{projectId} {
+      allow read: if isAuthenticated() && (request.auth.uid in resource.data.memberUids || resource.data.ownerUid == request.auth.uid);
+      allow create: if isAuthenticated() && hasRequiredFields(['id', 'name', 'status', 'ownerUid', 'memberUids']);
+      allow update: if isAuthenticated() && (resource.data.ownerUid == request.auth.uid || isProjectAdmin(projectId));
+      allow delete: if isAuthenticated() && resource.data.ownerUid == request.auth.uid;
+
+      match /members/{memberUid} {
+        allow read: if isProjectMember(projectId);
+        allow write: if isProjectAdmin(projectId);
+      }
+
+      match /tasks/{taskId} {
+        allow read: if isProjectMember(projectId);
+        allow create: if isProjectMember(projectId) && hasRequiredFields(['id', 'projectId', 'title', 'status']);
+        allow update, delete: if isProjectMember(projectId);
+      }
+
+      match /documents/{docId} {
+        allow read: if isProjectMember(projectId);
+        allow create: if isProjectMember(projectId) && hasRequiredFields(['id', 'name', 'type', 'category', 'module']);
+        allow update, delete: if isProjectMember(projectId);
+      }
+
+      match /comments/{commentId} {
+        allow read: if isProjectMember(projectId);
+        allow create: if isProjectMember(projectId) && hasRequiredFields(['id', 'targetId', 'targetType', 'authorUid', 'text']);
+        allow update, delete: if isProjectMember(projectId) && (request.auth.uid == resource.data.authorUid || isProjectAdmin(projectId));
+      }
+    }
+
+    match /users/{uid}/notifications/{notifId} {
+      allow read: if isOwner(uid);
+      allow create: if isAuthenticated();
+      allow update: if isOwner(uid) && hasOnlyAllowedFields(['isRead']);
+      allow delete: if isOwner(uid);
+    }
+  }
+}
