@@ -24,7 +24,8 @@ import {
   Truck,
   UserCheck,
   Box,
-  Globe
+  Globe,
+  Sparkles
 } from 'lucide-react';
 import { UserRole, User } from '../types';
 import { NotificationCenter } from './Collaboration';
@@ -68,6 +69,7 @@ const Layout: React.FC<LayoutProps> = ({
     { id: 'bim', label: 'BIM Viewer', icon: Box },
     { id: 'photos', label: 'Photo Logs', icon: Camera },
     { id: 'reports', label: 'Reports', icon: FileBarChart },
+    { id: 'ai-assistant', label: 'AI Assistant', icon: Sparkles },
     { id: 'client', label: 'Client Portal', icon: Globe },
     { id: 'team', label: 'Team', icon: Users },
     { id: 'documents', label: 'Documents', icon: FolderOpen },

@@ -606,3 +606,44 @@ export const parseBOQDocument = async (
     return [];
   }
 };
+
+export const askProjectAssistant = async (
+  projectData: ProjectState,
+  question: string
+): Promise<string> => {
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+
+  const prompt = `
+    You are an AI Project Management Assistant for a construction project.
+
+    Project Context:
+    - Name: ${projectData.name}
+    - Status: ${projectData.status}
+    - Contract Value: ${projectData.contractValue}
+    - BOQ Items: ${projectData.boq.length}
+    - DPR Entries: ${projectData.dprs.length}
+    - Bills: ${projectData.bills.length}
+    - Liabilities: ${projectData.liabilities.length}
+
+    User Question:
+    ${question}
+
+    Instructions:
+    - Respond clearly for a non-technical project team.
+    - Use concise markdown.
+    - If relevant, include 3 concrete next actions.
+    - If information is missing, explicitly say what is missing.
+  `;
+
+  try {
+    const response = await ai.models.generateContent({
+      model: 'gemini-3-flash-preview',
+      contents: prompt,
+    });
+
+    return response.text || 'No response generated.';
+  } catch (error) {
+    console.error('Project assistant error:', error);
+    return 'I could not process your request right now. Please verify GEMINI_API_KEY and try again.';
+  }
+};

@@ -25,6 +25,7 @@ import SustainabilityTracker from './components/SustainabilityTracker';
 import BimViewer from './components/BimViewer';
 import ClientPortal from './components/ClientPortal';
 import VendorAnalytics from './components/VendorAnalytics';
+import AiAssistant from './components/AiAssistant';
 import { CommentSection } from './components/Collaboration';
 import { MOCK_PROJECTS } from './constants';
 import { ProjectState, ProjectDocument, DPR, UserRole, BOQItem, AiSuggestion, Material, Bill, ExtractedDPR, User, Task } from './types';
@@ -719,6 +720,8 @@ const App: React.FC = () => {
         return <PhotoLogs photoLogs={activeProject.photoLogs || []} users={activeProjectMembers} />;
       case 'reports':
         return <Reporting project={activeProject} />;
+      case 'ai-assistant':
+        return <AiAssistant project={activeProject} />;
       case 'client':
         return <ClientPortal project={activeProject} />;
       case 'liability':
