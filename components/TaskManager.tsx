@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { db, auth, handleFirestoreError, OperationType } from '../firebase';
-import { collection, query, where, orderBy, onSnapshot, addDoc, updateDoc, doc, deleteDoc, getDocs } from 'firebase/firestore';
+import { collection, query, where, orderBy, onSnapshot, updateDoc, doc, deleteDoc, getDocs, setDoc } from 'firebase/firestore';
 import { Task, User, ProjectState } from '../types';
 import { 
   Plus, 

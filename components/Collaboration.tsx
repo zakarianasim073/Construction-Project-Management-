@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { db, auth, handleFirestoreError, OperationType } from '../firebase';
-import { collection, query, where, orderBy, onSnapshot, addDoc, serverTimestamp, updateDoc, doc, deleteDoc } from 'firebase/firestore';
+import { collection, query, where, orderBy, onSnapshot, doc, deleteDoc, setDoc, updateDoc } from 'firebase/firestore';
 import { Comment, Notification, User } from '../types';
 import { MessageSquare, Bell, Send, X, CheckCircle2, User as UserIcon, Clock, Trash2 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
