@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { auth, googleProvider, db } from '../firebase';
+import { auth, googleProvider, db, handleFirestoreError, OperationType } from '../firebase';
 import { signInWithPopup, signOut } from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { UserRole } from '../types';
@@ -23,9 +23,15 @@ const Auth: React.FC<AuthProps> = ({ onUserChange }) => {
       const user = result.user;
       
       // Check if user exists in Firestore
-      const userDoc = await getDoc(doc(db, 'users', user.uid));
+      const userRef = doc(db, 'users', user.uid);
+      let userDoc;
+      try {
+        userDoc = await getDoc(userRef);
+      } catch (firestoreErr) {
+        handleFirestoreError(firestoreErr, OperationType.GET, 'users');
+      }
       
-      if (userDoc.exists()) {
+      if (userDoc?.exists()) {
         onUserChange(userDoc.data());
       } else {
         // New user, show role selection
@@ -34,7 +40,14 @@ const Auth: React.FC<AuthProps> = ({ onUserChange }) => {
       }
     } catch (err: any) {
       console.error("Login error:", err);
-      setError(err.message || "Failed to login");
+      // Handle specific Firebase Auth errors
+      if (err.code === 'auth/unauthorized-domain') {
+        setError(`Domain ${window.location.hostname} is not authorized for Google Sign-In. Administrator action required in Firebase Console (Authentication > Settings > Authorized Domains).`);
+      } else if (err.code === 'auth/popup-blocked') {
+        setError("Sign-in popup was blocked by your browser. Please allow popups for this site.");
+      } else {
+        setError(err.message || "Failed to login. Please check your internet connection.");
+      }
     } finally {
       setIsLoading(false);
     }
@@ -54,12 +67,18 @@ const Auth: React.FC<AuthProps> = ({ onUserChange }) => {
         createdAt: new Date().toISOString()
       };
       
-      await setDoc(doc(db, 'users', tempUser.uid), userData);
+      const userRef = doc(db, 'users', tempUser.uid);
+      try {
+        await setDoc(userRef, userData);
+      } catch (firestoreErr) {
+        handleFirestoreError(firestoreErr, OperationType.CREATE, `users/${tempUser.uid}`);
+      }
+      
       onUserChange(userData);
       setShowRoleSelection(false);
     } catch (err: any) {
       console.error("Role selection error:", err);
-      setError(err.message || "Failed to save user profile");
+      setError(err.message || "Failed to save user profile. Please check your permissions.");
     } finally {
       setIsLoading(false);
     }

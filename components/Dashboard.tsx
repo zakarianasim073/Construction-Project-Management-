@@ -18,7 +18,8 @@ import {
   ChevronRight,
   BarChart3,
   Sun,
-  ShieldAlert
+  ShieldAlert,
+  Leaf
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { generateProjectInsights } from '../services/geminiService';
@@ -170,45 +171,65 @@ const ProjectGantt: React.FC<{ data: ProjectState }> = ({ data }) => {
               })}
            </div>
 
-           {/* Items Tracks */}
-           <div className="space-y-4">
+             {/* Items Tracks */}
+           <div className="space-y-4 pt-4">
               {itemTimelines.map(item => {
                 const left = getPositionPercent(item.start);
                 const width = Math.max(2, getPositionPercent(item.end) - left); // Min width 2%
                 
                 return (
-                  <div key={item.itemId} className="relative h-10 group">
-                     <div className="flex justify-between items-center text-xs mb-1 px-1">
-                        <span className="font-medium text-slate-700 truncate max-w-[200px]" title={item.name}>{item.name}</span>
-                        <div className="flex items-center gap-2">
-                            <span className={`text-[9px] px-1.5 py-0.5 rounded ${
-                                item.status === 'Completed' ? 'bg-emerald-100 text-emerald-700' :
-                                item.status === 'Delayed' ? 'bg-amber-100 text-amber-700' :
-                                'bg-slate-100 text-slate-600'
+                  <div key={item.itemId} className="relative h-14 group">
+                     <div className="flex justify-between items-center text-xs mb-1.5 px-1">
+                        <div className="flex flex-col">
+                           <span className="font-bold text-slate-700 truncate max-w-[250px]" title={item.name}>{item.name}</span>
+                           <span className="text-[10px] text-slate-400 font-mono tracking-tighter uppercase">{item.start} — {item.end}</span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                                item.status === 'Completed' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' :
+                                item.status === 'Delayed' ? 'bg-rose-50 text-rose-700 border-rose-100' :
+                                'bg-indigo-50 text-indigo-700 border-indigo-100'
                             }`}>{item.status}</span>
-                            <span className="font-mono font-bold text-slate-600">{item.progress.toFixed(0)}%</span>
+                            <span className="font-mono font-bold text-slate-800 text-sm">{item.progress.toFixed(0)}%</span>
                         </div>
                      </div>
-                     <div className="w-full h-3 bg-slate-100 rounded-full overflow-hidden relative">
-                        {/* The Bar */}
+                     <div className="w-full h-4 bg-slate-100 rounded-lg overflow-hidden relative shadow-inner">
+                        {/* The Background Bar (Planned/Total Window) */}
                         <div 
-                          className={`absolute h-full rounded-full transition-all duration-500 shadow-sm flex items-center ${
-                            item.priority === 'HIGH' ? 'bg-indigo-500' : 'bg-blue-400'
+                          className={`absolute h-full rounded-lg transition-all duration-500 flex items-center border border-white/20 ${
+                            item.priority === 'HIGH' ? 'bg-indigo-500/10' : 'bg-slate-300/10'
                           }`}
                           style={{ left: `${left}%`, width: `${width}%` }}
+                        ></div>
+
+                        {/* The Actual Progress Bar */}
+                        <div 
+                          className={`absolute h-full rounded-lg transition-all duration-700 shadow-sm flex items-center overflow-hidden border border-white/30 ${
+                            item.status === 'Delayed' ? 'bg-rose-500' :
+                            item.status === 'Completed' ? 'bg-emerald-500' :
+                            item.priority === 'HIGH' ? 'bg-indigo-600' : 'bg-blue-500'
+                          }`}
+                          style={{ left: `${left}%`, width: `${(width * item.progress) / 100}%` }}
                         >
-                           {/* Inner Progress - Actual completion against the task's active duration */}
-                           <div className="h-full bg-white/30" style={{ width: `${item.progress}%` }}></div>
+                           {/* Glossy overlay */}
+                           <div className="absolute inset-0 bg-gradient-to-b from-white/20 to-transparent"></div>
+                           {/* Animated stripes if active */}
+                           {item.status !== 'Completed' && (
+                             <div className="absolute inset-0 opacity-20 bg-[linear-gradient(45deg,rgba(255,255,255,.15)_25%,transparent_25%,transparent_50%,rgba(255,255,255,.15)_50%,rgba(255,255,255,.15)_75%,transparent_75%,transparent)] bg-[length:20px_20px] animate-[pulse_2s_infinite]"></div>
+                           )}
                         </div>
                      </div>
                      
                      {/* Hover Details */}
-                     <div className="absolute -top-10 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 bg-white border border-slate-200 shadow-xl text-slate-600 text-xs px-3 py-2 rounded z-40 pointer-events-none w-max">
-                        <div className="font-bold text-slate-800">{item.name}</div>
-                        <div className="flex gap-3 mt-1">
+                     <div className="absolute -top-12 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 bg-slate-900 text-white text-[10px] px-3 py-2 rounded-lg z-40 pointer-events-none w-max shadow-2xl transition-all duration-200 transform group-hover:-translate-y-1">
+                        <div className="font-bold border-b border-slate-700 pb-1 mb-1">{item.name}</div>
+                        <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                            <div><span className="text-slate-400">Duration:</span> {getDaysDiff(item.start, item.end).toFixed(0)}d</div>
+                            <div><span className="text-slate-400">Progress:</span> {item.progress.toFixed(1)}%</div>
                             <div><span className="text-slate-400">Start:</span> {item.start}</div>
                             <div><span className="text-slate-400">End:</span> {item.end}</div>
                         </div>
+                        <div className="absolute bottom-[-4px] left-1/2 -translate-x-1/2 w-2 h-2 bg-slate-900 rotate-45"></div>
                      </div>
                   </div>
                 );
@@ -279,28 +300,65 @@ const Dashboard: React.FC<DashboardProps> = ({ data, onApplySuggestion, onDismis
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-bold text-slate-800">Project Overview</h1>
+            <h1 className="text-2xl font-bold text-slate-800">Project Engine Overview</h1>
             <div className={`px-2 py-0.5 rounded text-[10px] font-bold border uppercase tracking-wider flex items-center gap-1 ${getPriorityColor(data.priority)}`}>
               <Flag className="w-2.5 h-2.5" />
               {data.priority} Priority
             </div>
           </div>
-          <p className="text-slate-500">Welcome back to {data.name}</p>
+          <p className="text-slate-500">Intelligent control for {data.name}</p>
         </div>
-        <button 
-          onClick={handleGenerateInsights}
-          disabled={loadingInsight}
-          className="flex items-center gap-2 bg-gradient-to-r from-violet-600 to-indigo-600 text-white px-4 py-2 rounded-lg hover:shadow-lg transition-all disabled:opacity-70"
-        >
-          <Sparkles className="w-4 h-4" />
-          {loadingInsight ? 'Analyzing Progress Pending...' : 'Ask AI Analyst'}
-        </button>
+        <div className="flex items-center gap-3">
+          <button 
+            onClick={handleGenerateInsights}
+            disabled={loadingInsight}
+            className="flex items-center gap-2 bg-indigo-600 text-white px-5 py-2.5 rounded-xl hover:bg-indigo-700 transition-all shadow-md active:scale-95 disabled:opacity-70 font-semibold"
+          >
+            <Sparkles className="w-4 h-4" />
+            {loadingInsight ? 'Analyzing Data...' : 'Generate AI Insights'}
+          </button>
+        </div>
+      </div>
+
+      {/* Project Health Bar */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4">
+          <div className={`p-3 rounded-xl ${data.riskAssessment?.overallRiskScore && data.riskAssessment.overallRiskScore > 70 ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-600'}`}>
+            <ShieldAlert className="w-6 h-6" />
+          </div>
+          <div>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Risk Index</p>
+            <p className="text-lg font-bold text-slate-800">{data.riskAssessment?.overallRiskScore || 0}% Risk</p>
+          </div>
+        </div>
+        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4">
+          <div className="p-3 bg-blue-50 text-blue-600 rounded-xl">
+             <Sun className="w-6 h-6" />
+          </div>
+          <div>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Weather Impact</p>
+            <p className="text-lg font-bold text-slate-800">
+              {data.weatherForecast?.find(f => f.impactOnSite !== 'NONE') ? 'Advisory' : 'Clear Skies'}
+            </p>
+          </div>
+        </div>
+        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4">
+          <div className="p-3 bg-emerald-50 text-emerald-600 rounded-xl">
+             <Activity className="w-6 h-6" />
+          </div>
+          <div>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Live Efficiency</p>
+            <p className="text-lg font-bold text-slate-800">
+              {progressPercentage > 0 ? (progressPercentage / getDaysDiff(data.startDate, new Date().toISOString()) * 100).toFixed(1) : '0.0'}% / Day
+            </p>
+          </div>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         <div className="xl:col-span-2 space-y-6">
             {/* KPI Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
                 <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
                 <div className="flex justify-between items-start">
                     <div>
@@ -353,6 +411,19 @@ const Dashboard: React.FC<DashboardProps> = ({ data, onApplySuggestion, onDismis
                     </div>
                 </div>
                 <p className="text-xs text-slate-400 mt-4">Pending + Retention</p>
+                </div>
+
+                <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
+                <div className="flex justify-between items-start">
+                    <div>
+                    <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Carbon</p>
+                    <h3 className="text-2xl font-bold text-green-600 mt-1">{data.sustainabilityMetrics?.carbonFootprint || 0}kg</h3>
+                    </div>
+                    <div className="p-2 bg-green-50 text-green-600 rounded-lg">
+                    <Leaf className="w-5 h-5" />
+                    </div>
+                </div>
+                <p className="text-xs text-slate-400 mt-4">CO2 Footprint</p>
                 </div>
             </div>
 

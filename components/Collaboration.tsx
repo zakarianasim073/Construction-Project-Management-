@@ -45,8 +45,10 @@ export const CommentSection: React.FC<CollaborationProps> = ({ projectId, target
 
     setIsLoading(true);
     const path = `projects/${projectId}/comments`;
+    const commentId = `COMM-${Date.now()}`;
     try {
-      await addDoc(collection(db, path), {
+      await setDoc(doc(db, path, commentId), {
+        id: commentId,
         targetId,
         targetType,
         authorUid: auth.currentUser.uid,

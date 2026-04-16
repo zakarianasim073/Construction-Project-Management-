@@ -29,10 +29,10 @@ import { CommentSection } from './components/Collaboration';
 import { MOCK_PROJECTS } from './constants';
 import { ProjectState, ProjectDocument, DPR, UserRole, BOQItem, AiSuggestion, Material, Bill, ExtractedDPR, User, Task } from './types';
 import { parseBOQDocument, analyzeDocumentContent, processWhatsAppMessage } from './services/geminiService';
-import { auth, db, handleFirestoreError, OperationType } from './firebase';
+import { auth, db, handleFirestoreError, OperationType, stripUndefined } from './firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { collection, onSnapshot, query, addDoc, doc, setDoc, updateDoc, deleteDoc, orderBy, where } from 'firebase/firestore';
-import { MessageSquare, Send, Loader2, Smartphone } from 'lucide-react';
+import { collection, onSnapshot, query, addDoc, doc, setDoc, updateDoc, deleteDoc, orderBy, where, getDocFromServer } from 'firebase/firestore';
+import { MessageSquare, Send, Loader2, Smartphone, AlertCircle, LayoutDashboard, PlusCircle } from 'lucide-react';
 
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -46,6 +46,21 @@ const App: React.FC = () => {
   const [isSimulatingWhatsApp, setIsSimulatingWhatsApp] = useState(false);
   const [whatsappMessage, setWhatsappMessage] = useState('');
   const [selectedDocId, setSelectedDocId] = useState<string | null>(null);
+  const [connectionError, setConnectionError] = useState<string | null>(null);
+
+  // Connection Test
+  useEffect(() => {
+    const testConnection = async () => {
+      try {
+        await getDocFromServer(doc(db, '_connection_test_', 'ping'));
+      } catch (error: any) {
+        if (error.message?.includes('the client is offline')) {
+          setConnectionError("Firebase connection failed. Please check your project configuration.");
+        }
+      }
+    };
+    testConnection();
+  }, []);
 
   // Auth Listener
   useEffect(() => {
@@ -57,6 +72,9 @@ const App: React.FC = () => {
           if (docSnap.exists()) {
             setUser(docSnap.data() as User);
           }
+          setIsAuthReady(true);
+        }, (error) => {
+          handleFirestoreError(error, OperationType.GET, `users/${firebaseUser.uid}`);
           setIsAuthReady(true);
         });
       } else {
@@ -91,13 +109,22 @@ const App: React.FC = () => {
         purchaseOrders: doc.data().purchaseOrders || [],
         qualityChecks: doc.data().qualityChecks || [],
         safetyChecks: doc.data().safetyChecks || [],
-        photoLogs: doc.data().photoLogs || []
+        photoLogs: doc.data().photoLogs || [],
+        equipment: doc.data().equipment || [],
+        attendance: doc.data().attendance || [],
+        changeOrders: doc.data().changeOrders || [],
+        vendors: doc.data().vendors || [],
+        riskAssessment: doc.data().riskAssessment || null,
+        weatherForecast: doc.data().weatherForecast || [],
+        sustainabilityMetrics: doc.data().sustainabilityMetrics || null,
+        bimModels: doc.data().bimModels || []
       })) as ProjectState[];
       
       if (fetchedProjects.length === 0 && projects.length === 0) {
         // Seed with mock data if empty
         MOCK_PROJECTS.forEach(async (p) => {
-          await setDoc(doc(db, 'projects', p.id), { ...p, ownerUid: user.uid });
+          const projectData = stripUndefined({ ...p, ownerUid: user.uid });
+          await setDoc(doc(db, 'projects', p.id), projectData);
         });
       } else {
         setProjects(fetchedProjects);
@@ -189,11 +216,21 @@ const App: React.FC = () => {
       boq: [],
       bills: [],
       liabilities: [],
-      milestones: []
+      milestones: [],
+      purchaseOrders: [],
+      qualityChecks: [],
+      safetyChecks: [],
+      photoLogs: [],
+      equipment: [],
+      attendance: [],
+      changeOrders: [],
+      vendors: [],
+      weatherForecast: [],
+      bimModels: []
     };
     
     try {
-      await setDoc(doc(db, 'projects', id), project);
+      await setDoc(doc(db, 'projects', id), stripUndefined(project));
       
       // Also create the member record for the owner
       await setDoc(doc(db, 'projects', id, 'members', user.uid), {
@@ -215,8 +252,10 @@ const App: React.FC = () => {
     if (!project) return;
     
     const updated = updater(project);
+    const finalData = stripUndefined(updated);
+
     try {
-      await updateDoc(doc(db, 'projects', projectId), updated as any);
+      await updateDoc(doc(db, 'projects', projectId), finalData);
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `projects/${projectId}`);
     }
@@ -555,8 +594,14 @@ const App: React.FC = () => {
 
   if (!isAuthReady) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
-        <Loader2 className="w-10 h-10 text-blue-600 animate-spin" />
+      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50">
+        <Loader2 className="w-10 h-10 text-blue-600 animate-spin mb-4" />
+        {connectionError && (
+          <div className="max-w-md p-4 bg-red-50 border border-red-200 rounded-xl flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
+            <p className="text-sm text-red-700 font-medium">{connectionError}</p>
+          </div>
+        )}
       </div>
     );
   }
@@ -580,6 +625,27 @@ const App: React.FC = () => {
   }
 
   const renderContent = () => {
+    if (!activeProjectId || !activeProject) {
+      return (
+        <div className="flex flex-col items-center justify-center h-[calc(100vh-12rem)] text-slate-400">
+          <div className="p-8 rounded-full mb-6 bg-slate-100">
+            <LayoutDashboard className="w-16 h-16 opacity-20" />
+          </div>
+          <h2 className="text-2xl font-bold text-slate-600 mb-2">No Project Selected</h2>
+          <p className="max-w-md text-center mb-8">
+            Please select a project from the sidebar to view its dashboard and manage construction activities.
+          </p>
+          <button 
+            onClick={() => setActiveProjectId(null)}
+            className="flex items-center gap-2 bg-blue-600 text-white px-6 py-3 rounded-xl hover:bg-blue-700 transition-all shadow-lg active:scale-95 font-semibold"
+          >
+            <PlusCircle className="w-5 h-5" />
+            Go to Project List
+          </button>
+        </div>
+      );
+    }
+
     switch (activeTab) {
       case 'dashboard':
         return (

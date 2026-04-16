@@ -47,15 +47,19 @@ service cloud.firestore {
     }
 
     function isProjectMember(projectId) {
-      let project = get(/databases/$(database)/documents/projects/$(projectId)).data;
-      return isAuthenticated() && (request.auth.uid in project.memberUids || project.ownerUid == request.auth.uid);
+      return isAuthenticated() && (
+        isAdmin() || 
+        request.auth.uid == get(/databases/$(database)/documents/projects/$(projectId)).data.ownerUid ||
+        request.auth.uid in get(/databases/$(database)/documents/projects/$(projectId)).data.get('memberUids', [])
+      );
     }
 
     function isProjectAdmin(projectId) {
-      let project = get(/databases/$(database)/documents/projects/$(projectId)).data;
       return isAuthenticated() && (
-        project.ownerUid == request.auth.uid || 
-        get(/databases/$(database)/documents/projects/$(projectId)/members/$(request.auth.uid)).data.role in ['DIRECTOR', 'MANAGER']
+        isAdmin() ||
+        get(/databases/$(database)/documents/projects/$(projectId)).data.ownerUid == request.auth.uid || 
+        (exists(/databases/$(database)/documents/projects/$(projectId)/members/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/projects/$(projectId)/members/$(request.auth.uid)).data.role in ['DIRECTOR', 'MANAGER'])
       );
     }
 

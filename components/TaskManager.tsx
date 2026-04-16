@@ -70,24 +70,29 @@ const TaskManager: React.FC<TaskManagerProps> = ({ projectId, currentUser }) => 
   const handleCreateTask = async (e: React.FormEvent) => {
     e.preventDefault();
     const path = `projects/${projectId}/tasks`;
+    const taskId = `TASK-${Date.now()}`;
     try {
       const taskData = {
+        id: taskId,
         ...newTask,
         projectId,
         status: 'PENDING',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       };
-      const docRef = await addDoc(collection(db, path), taskData);
+      await setDoc(doc(db, path, taskId), taskData);
       
       // Create notification for assigned user
       if (newTask.assignedTo) {
+        const notifId = `NOTIF-${Date.now()}`;
         const notifPath = `users/${newTask.assignedTo}/notifications`;
-        await addDoc(collection(db, notifPath), {
+        await setDoc(doc(db, notifPath, notifId), {
+          id: notifId,
+          recipientUid: newTask.assignedTo,
           type: 'TASK_ASSIGNED',
           title: 'New Task Assigned',
           message: `You have been assigned a new task: ${newTask.title}`,
-          targetId: docRef.id,
+          targetId: taskId,
           isRead: false,
           createdAt: new Date().toISOString()
         });
