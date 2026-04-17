@@ -87,8 +87,3 @@
 .markdown-body li {
   @apply text-slate-600;
 }
-
-@keyframes shimmer {
-  0% { transform: translateX(-150%) skewX(12deg); }
-  100% { transform: translateX(250%) skewX(12deg); }
-}
