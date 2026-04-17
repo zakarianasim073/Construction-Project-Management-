@@ -2,7 +2,7 @@
 import React, { useState, useMemo } from 'react';
 import { ProjectState, ProjectDocument, DPR, UserRole, MaterialConsumption, Unit } from '../types';
 import DocumentManager from './DocumentManager';
-import { MapPin, Users, Calendar, PlusCircle, X, ClipboardCheck, Lock, Sparkles, Loader2, FileText, CheckCircle2, Package, ArrowDownLeft, ArrowUpRight, Edit2, Save, HardHat, BarChart3, AlertCircle } from 'lucide-react';
+import { MapPin, Users, Calendar, PlusCircle, X, ClipboardCheck, Lock, Sparkles, Loader2, FileText, CheckCircle2, Package, ArrowDownLeft, ArrowUpRight, Edit2, Save, HardHat, BarChart3, AlertCircle, Mic } from 'lucide-react';
 import { extractDPRData } from '../services/geminiService';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, Cell } from 'recharts';
 
@@ -150,20 +150,52 @@ const SiteExecution: React.FC<SiteExecutionProps> = ({ data, onAddDocument, onAd
     setMaterialsConsumed([]);
   };
 
-  const handleAiAutoFill = async () => {
-    const reportToAnalyze = selectedReportId 
-      ? reportDocs.find(d => d.id === selectedReportId)
-      : reportDocs[0];
-
-    if (!reportToAnalyze) {
-      alert("Please upload or select a site report to analyze.");
+  // Speech Recognition State
+  const [isRecording, setIsRecording] = useState(false);
+  
+  const handleVoiceRecord = () => {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      alert("Voice recognition is not supported in this browser.");
       return;
     }
 
-    setIsAiLoading(true);
-    const extracted = await extractDPRData(reportToAnalyze.name, data.boq);
-    setIsAiLoading(false);
+    const recognition = new SpeechRecognition();
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    recognition.lang = 'en-US';
 
+    recognition.onstart = () => {
+      setIsRecording(true);
+    };
+
+    recognition.onresult = async (event: any) => {
+      setIsRecording(false);
+      const transcript = event.results[0][0].transcript;
+      if (transcript) {
+        setIsAiLoading(true);
+        // We use the Gemini API to extract DPR data from the voice transcript directly
+        const extracted = await extractDPRData("Voice Note", data.boq, transcript, 'text/plain');
+        handleExtractionResult(extracted);
+      }
+    };
+
+    recognition.onerror = (event: any) => {
+      console.error("Speech recognition error", event.error);
+      setIsRecording(false);
+      if (event.error === 'not-allowed') {
+         alert("Please grant microphone permissions to use voice dictation.");
+      } else {
+         // Fallback simulation for preview environment without mic access
+         alert(`Microphone error: ${event.error}. Note: If inside an iframe without mic access, please open in a new tab.`);
+      }
+    };
+
+    recognition.start();
+  };
+
+  const handleExtractionResult = (extracted: any) => {
+    setIsAiLoading(false);
     if (extracted) {
       const newPopulated = new Set<string>();
       if (extracted.date) { setActivityDate(extracted.date); newPopulated.add('date'); }
@@ -174,7 +206,6 @@ const SiteExecution: React.FC<SiteExecutionProps> = ({ data, onAddDocument, onAd
       if (extracted.linkedBoqId) { setLinkedBoqId(extracted.linkedBoqId); newPopulated.add('boq'); }
       if (extracted.workDoneQty) { setWorkDoneQty(extracted.workDoneQty); newPopulated.add('qty'); }
       
-      // Auto-select subcontractor if name matches
       if (extracted.subContractorName) {
          const match = data.subContractors?.find(s => 
            s.name.toLowerCase().includes(extracted.subContractorName!.toLowerCase()) || 
@@ -186,10 +217,8 @@ const SiteExecution: React.FC<SiteExecutionProps> = ({ data, onAddDocument, onAd
          }
       }
 
-      // Map structured materials to IDs
       if (extracted.materials && extracted.materials.length > 0) {
-        const mappedMaterials = extracted.materials.map(m => {
-          // Fuzzy match by name
+        const mappedMaterials = extracted.materials.map((m: any) => {
           const match = data.materials.find(ex => ex.name.toLowerCase().includes(m.name.toLowerCase()));
           return match ? { materialId: match.id, qty: m.qty } : null;
         }).filter(Boolean) as MaterialConsumption[];
@@ -202,6 +231,21 @@ const SiteExecution: React.FC<SiteExecutionProps> = ({ data, onAddDocument, onAd
       
       setAiPopulatedFields(newPopulated);
     }
+  };
+
+  const handleAiAutoFill = async () => {
+    const reportToAnalyze = selectedReportId 
+      ? reportDocs.find(d => d.id === selectedReportId)
+      : reportDocs[0];
+
+    if (!reportToAnalyze) {
+      alert("Please upload or select a site report to analyze.");
+      return;
+    }
+
+    setIsAiLoading(true);
+    const extracted = await extractDPRData(reportToAnalyze.name, data.boq);
+    handleExtractionResult(extracted);
   };
 
   const addConsumptionRow = () => {
@@ -716,6 +760,15 @@ const SiteExecution: React.FC<SiteExecutionProps> = ({ data, onAddDocument, onAd
                     className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-xs font-bold shadow-sm hover:bg-indigo-700 transition-all disabled:opacity-50 flex items-center gap-1.5"
                   >
                     Auto-Fill
+                  </button>
+                  <button 
+                    onClick={(e) => { e.preventDefault(); handleVoiceRecord(); }}
+                    disabled={isRecording || isAiLoading}
+                    className={`px-4 py-2 rounded-lg text-xs font-bold shadow-sm transition-all disabled:opacity-50 flex items-center gap-1.5 ${isRecording ? 'bg-red-500 text-white animate-pulse' : 'bg-white text-indigo-600 border border-indigo-200 hover:bg-indigo-50'}`}
+                    title="Dictate Daily Progress"
+                  >
+                    <Mic className="w-3.5 h-3.5" />
+                    {isRecording ? 'Listening...' : 'Dictate'}
                   </button>
                </div>
                {aiPopulatedFields.size > 0 && (

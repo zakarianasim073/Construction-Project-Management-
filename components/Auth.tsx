@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import { auth, googleProvider, db, handleFirestoreError, OperationType } from '../firebase';
-import { signInWithPopup, signOut } from 'firebase/auth';
+import { auth, db, handleFirestoreError, OperationType } from '../firebase';
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { UserRole } from '../types';
-import { LogIn, LogOut, User as UserIcon, ShieldCheck, Construction, Calculator, Briefcase } from 'lucide-react';
+import { LogIn, UserPlus, ShieldCheck, Construction, Calculator, Briefcase, Mail, Lock, User as UserIcon } from 'lucide-react';
 
 interface AuthProps {
   onUserChange: (user: any | null) => void;
@@ -14,13 +14,25 @@ const Auth: React.FC<AuthProps> = ({ onUserChange }) => {
   const [error, setError] = useState<string | null>(null);
   const [showRoleSelection, setShowRoleSelection] = useState(false);
   const [tempUser, setTempUser] = useState<any>(null);
+  const [isSignUp, setIsSignUp] = useState(false);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [name, setName] = useState('');
 
-  const handleLogin = async () => {
+  const handleAuth = async (e: React.FormEvent) => {
+    e.preventDefault();
     setIsLoading(true);
     setError(null);
     try {
-      const result = await signInWithPopup(auth, googleProvider);
-      const user = result.user;
+      let user;
+      if (isSignUp) {
+        const result = await createUserWithEmailAndPassword(auth, email, password);
+        user = result.user;
+        await updateProfile(user, { displayName: name });
+      } else {
+        const result = await signInWithEmailAndPassword(auth, email, password);
+        user = result.user;
+      }
       
       // Check if user exists in Firestore
       const userRef = doc(db, 'users', user.uid);
@@ -34,19 +46,20 @@ const Auth: React.FC<AuthProps> = ({ onUserChange }) => {
       if (userDoc?.exists()) {
         onUserChange(userDoc.data());
       } else {
-        // New user, show role selection
+        // New user or missing profile, show role selection
         setTempUser(user);
         setShowRoleSelection(true);
       }
     } catch (err: any) {
-      console.error("Login error:", err);
-      // Handle specific Firebase Auth errors
-      if (err.code === 'auth/unauthorized-domain') {
-        setError(`Domain ${window.location.hostname} is not authorized for Google Sign-In. Administrator action required in Firebase Console (Authentication > Settings > Authorized Domains).`);
-      } else if (err.code === 'auth/popup-blocked') {
-        setError("Sign-in popup was blocked by your browser. Please allow popups for this site.");
+      console.error("Auth error:", err);
+      if (err.code === 'auth/email-already-in-use') {
+        setError("This email is already in use.");
+      } else if (err.code === 'auth/invalid-credential') {
+        setError("Invalid email or password.");
+      } else if (err.code === 'auth/weak-password') {
+        setError("Password should be at least 6 characters.");
       } else {
-        setError(err.message || "Failed to login. Please check your internet connection.");
+        setError(err.message || "Authentication failed. Please check your credentials.");
       }
     } finally {
       setIsLoading(false);
@@ -127,67 +140,109 @@ const Auth: React.FC<AuthProps> = ({ onUserChange }) => {
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden border border-slate-200">
-        <div className="p-8 text-center">
-          <div className="w-20 h-20 bg-blue-600 text-white rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg rotate-3">
-            <Construction className="w-10 h-10" />
+        <div className="p-8">
+          <div className="text-center mb-8">
+            <div className="w-16 h-16 bg-blue-600 text-white rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg rotate-3">
+              <Construction className="w-8 h-8" />
+            </div>
+            <h1 className="text-2xl font-bold text-slate-900 mb-2 leading-tight">BuildTrack AI</h1>
+            <p className="text-slate-500 text-sm">{isSignUp ? 'Create your account' : 'Welcome back'}</p>
           </div>
-          <h1 className="text-3xl font-bold text-slate-900 mb-2 leading-tight">Construction project management - AI</h1>
-          <p className="text-slate-500 mb-8">Construction Project Management Reimagined</p>
           
           {error && (
-            <div className="mb-6 p-3 bg-red-50 border border-red-200 text-red-600 text-sm rounded-lg">
+            <div className="mb-6 p-3 bg-red-50 border border-red-200 text-red-600 text-sm rounded-lg flex items-center gap-2">
+              <LogIn className="w-4 h-4 shrink-0" />
               {error}
             </div>
           )}
           
-          <div className="flex flex-col gap-3">
-            <button
-              onClick={handleLogin}
-              disabled={isLoading}
-              className="w-full flex items-center justify-center gap-3 bg-white border border-slate-300 text-slate-700 font-bold py-3 px-4 rounded-xl hover:bg-slate-50 transition-all shadow-sm active:scale-95 disabled:opacity-50"
-            >
-              {isLoading ? (
-                <div className="w-5 h-5 border-2 border-slate-300 border-t-slate-600 rounded-full animate-spin" />
-              ) : (
-                <>
-                  <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" className="w-5 h-5" alt="Google" />
-                  Sign in with Google
-                </>
-              )}
-            </button>
+          <form onSubmit={handleAuth} className="space-y-4">
+            {isSignUp && (
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-700 uppercase tracking-wider ml-1">Full Name</label>
+                <div className="relative">
+                  <UserIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  <input
+                    type="text"
+                    required
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-600 outline-none text-sm transition-all"
+                    placeholder="Enter your name"
+                  />
+                </div>
+              </div>
+            )}
+            
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-slate-700 uppercase tracking-wider ml-1">Email Address</label>
+              <div className="relative">
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <input
+                  type="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-600 outline-none text-sm transition-all"
+                  placeholder="name@company.com"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-slate-700 uppercase tracking-wider ml-1">Password</label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <input
+                  type="password"
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-600 outline-none text-sm transition-all"
+                  placeholder="••••••••"
+                />
+              </div>
+            </div>
 
             <button
-              onClick={handleLogin}
+              type="submit"
               disabled={isLoading}
-              className="w-full flex items-center justify-center gap-3 bg-blue-600 text-white font-bold py-3 px-4 rounded-xl hover:bg-blue-700 transition-all shadow-lg shadow-blue-200 active:scale-95 disabled:opacity-50"
+              className="w-full flex items-center justify-center gap-2 bg-blue-600 text-white font-bold py-3 px-4 rounded-xl hover:bg-blue-700 transition-all shadow-lg shadow-blue-200 active:scale-95 disabled:opacity-50 mt-6"
             >
               {isLoading ? (
                 <div className="w-5 h-5 border-2 border-white border-t-blue-300 rounded-full animate-spin" />
               ) : (
                 <>
-                  <UserIcon className="w-5 h-5" />
-                  Sign up with Google
+                  {isSignUp ? <UserPlus className="w-5 h-5" /> : <LogIn className="w-5 h-5" />}
+                  {isSignUp ? 'Create Account' : 'Sign In'}
                 </>
               )}
+            </button>
+          </form>
+
+          <div className="mt-6 text-center">
+            <button
+              onClick={() => {
+                setIsSignUp(!isSignUp);
+                setError(null);
+              }}
+              className="text-sm font-semibold text-blue-600 hover:text-blue-700"
+            >
+              {isSignUp ? 'Already have an account? Sign In' : "Don't have an account? Sign Up"}
             </button>
           </div>
           
           <div className="mt-8 pt-8 border-t border-slate-100">
-            <p className="text-xs text-slate-400 uppercase tracking-widest font-bold mb-4">New Features Integrated</p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2 text-left">
+            <div className="grid grid-cols-2 gap-x-4 gap-y-2">
               {[
-                'Gantt Chart & Timeline',
-                'Budget vs Actual Analytics',
-                'Procurement Workflow',
-                'Sub-contractor Portal',
-                'Digital QC & Safety',
-                'Automated Reporting',
-                'Low-Stock Alerts',
-                'Site Photo Logs'
+                { label: 'Gantt Chart', icon: <ShieldCheck className="w-3 h-3 text-emerald-500" /> },
+                { label: 'Analytics', icon: <ShieldCheck className="w-3 h-3 text-emerald-500" /> },
+                { label: 'Procurement', icon: <ShieldCheck className="w-3 h-3 text-emerald-500" /> },
+                { label: 'Site Logs', icon: <ShieldCheck className="w-3 h-3 text-emerald-500" /> }
               ].map((feature) => (
-                <div key={feature} className="flex items-center gap-2 text-slate-600">
-                  <ShieldCheck className="w-3 h-3 text-emerald-500 shrink-0" />
-                  <span className="text-[11px] font-medium">{feature}</span>
+                <div key={feature.label} className="flex items-center gap-2 text-slate-500">
+                  {feature.icon}
+                  <span className="text-[10px] font-bold uppercase tracking-wider">{feature.label}</span>
                 </div>
               ))}
             </div>

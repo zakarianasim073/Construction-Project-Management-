@@ -297,7 +297,7 @@ export const extractDPRData = async (
   mimeType: string = 'application/pdf'
 ): Promise<ExtractedDPR | null> => {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-  const promptText = `
+  let promptText = `
     You are a construction AI agent. Analyze the site report document name: "${docName}".
     Your task is to EXTRACT the Daily Progress Report (DPR) data strictly from the provided document content.
     Do NOT simulate or hallucinate data that is not present in the file.
@@ -316,8 +316,12 @@ export const extractDPRData = async (
     If data is missing, leave the field null or empty.
   `;
 
+  if (fileContent && mimeType === 'text/plain') {
+     promptText += `\n\n--- CONTENT TO ANALYZE ---\n${fileContent}\n------------------------\n`;
+  }
+
   const parts: any[] = [{ text: promptText }];
-  if (fileContent) {
+  if (fileContent && mimeType !== 'text/plain') {
       parts.push({
           inlineData: {
               mimeType: mimeType,
@@ -607,43 +611,77 @@ export const parseBOQDocument = async (
   }
 };
 
-export const askProjectAssistant = async (
-  projectData: ProjectState,
-  question: string
-): Promise<string> => {
+export const generatePredictiveRiskAssessment = async (projectData: ProjectState): Promise<any> => {
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-
+  
+  const pendingItems = projectData.boq.filter(i => i.executedQty < i.plannedQty);
+  
+  const totalPlannedValue = projectData.boq.reduce((sum, item) => sum + (item.plannedQty * item.rate), 0);
+  const totalExecutedValue = projectData.boq.reduce((sum, item) => sum + (item.executedQty * item.rate), 0);
+  const progressPercentage = totalPlannedValue > 0 ? ((totalExecutedValue / totalPlannedValue) * 100).toFixed(1) : 0;
+  
   const prompt = `
-    You are an AI Project Management Assistant for a construction project.
-
-    Project Context:
-    - Name: ${projectData.name}
-    - Status: ${projectData.status}
-    - Contract Value: ${projectData.contractValue}
-    - BOQ Items: ${projectData.boq.length}
-    - DPR Entries: ${projectData.dprs.length}
-    - Bills: ${projectData.bills.length}
-    - Liabilities: ${projectData.liabilities.length}
-
-    User Question:
-    ${question}
-
-    Instructions:
-    - Respond clearly for a non-technical project team.
-    - Use concise markdown.
-    - If relevant, include 3 concrete next actions.
-    - If information is missing, explicitly say what is missing.
+    You are an expert AI Construction Risk Analyst. Analyze the current state of this project and predict potential delays and risks.
+    
+    Project: ${projectData.name}
+    Contract Value: ${projectData.contractValue}
+    Overall Progress: ${progressPercentage}% (Estimated)
+    
+    DPRs logged: ${projectData.dprs.length}
+    Pending Critical Tasks:
+    ${pendingItems.slice(0, 5).map(i => `- ${i.description}: ${(i.executedQty/i.plannedQty*100).toFixed(1)}% complete. Remaining: ${i.plannedQty - i.executedQty} ${i.unit}`).join('\n')}
+    
+    Material Inventory Issues (Low Stock):
+    ${projectData.materials.filter(m => m.currentStock < (m.totalReceived * 0.1)).map(m => `- ${m.name}: ${m.currentStock} ${m.unit} (Critically Low)`).join('\n')}
+    
+    Return a JSON object containing:
+    1. "overallRiskScore": An integer from 0 to 100 representing the risk level (100 = critical failure imminent).
+    2. "risks": An array of at least 3 risk objects. Each object must have:
+       - "category": e.g., 'SCHEDULE', 'SUPPLY_CHAIN', 'FINANCIAL', 'WEATHER'
+       - "impact": 'HIGH', 'MEDIUM', or 'LOW'
+       - "probability": A float between 0.0 and 1.0
+       - "description": A concise explanation of the risk.
+       - "mitigation": A specific, actionable step the Project Manager can take right now.
   `;
 
   try {
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: prompt,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            overallRiskScore: { type: Type.NUMBER },
+            risks: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  category: { type: Type.STRING },
+                  impact: { type: Type.STRING },
+                  probability: { type: Type.NUMBER },
+                  description: { type: Type.STRING },
+                  mitigation: { type: Type.STRING }
+                },
+                required: ["category", "impact", "probability", "description", "mitigation"]
+              }
+            }
+          },
+          required: ["overallRiskScore", "risks"]
+        }
+      }
     });
-
-    return response.text || 'No response generated.';
+    
+    const result = JSON.parse(response.text || "{}");
+    return {
+      lastUpdated: new Date().toISOString(),
+      overallRiskScore: result.overallRiskScore || 50,
+      risks: result.risks || []
+    };
   } catch (error) {
-    console.error('Project assistant error:', error);
-    return 'I could not process your request right now. Please verify GEMINI_API_KEY and try again.';
+    console.error("Predictive Risk Assessment error:", error);
+    return null;
   }
 };

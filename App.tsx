@@ -25,7 +25,7 @@ import SustainabilityTracker from './components/SustainabilityTracker';
 import BimViewer from './components/BimViewer';
 import ClientPortal from './components/ClientPortal';
 import VendorAnalytics from './components/VendorAnalytics';
-import AiAssistant from './components/AiAssistant';
+import GeminiChat from './components/GeminiChat';
 import { CommentSection } from './components/Collaboration';
 import { MOCK_PROJECTS } from './constants';
 import { ProjectState, ProjectDocument, DPR, UserRole, BOQItem, AiSuggestion, Material, Bill, ExtractedDPR, User, Task } from './types';
@@ -654,6 +654,7 @@ const App: React.FC = () => {
             data={activeProject} 
             onApplySuggestion={handleApplySuggestion}
             onDismissSuggestion={handleDismissSuggestion}
+            onUpdateProject={(updater) => handleUpdateProject(activeProjectId, updater)}
           />
         );
       case 'master':
@@ -720,8 +721,6 @@ const App: React.FC = () => {
         return <PhotoLogs photoLogs={activeProject.photoLogs || []} users={activeProjectMembers} />;
       case 'reports':
         return <Reporting project={activeProject} />;
-      case 'ai-assistant':
-        return <AiAssistant project={activeProject} />;
       case 'client':
         return <ClientPortal project={activeProject} />;
       case 'liability':
@@ -771,7 +770,7 @@ const App: React.FC = () => {
           </div>
         );
       default:
-        return <Dashboard data={activeProject} onApplySuggestion={handleApplySuggestion} onDismissSuggestion={handleDismissSuggestion} />;
+        return <Dashboard data={activeProject} onApplySuggestion={handleApplySuggestion} onDismissSuggestion={handleDismissSuggestion} onUpdateProject={(updater) => handleUpdateProject(activeProjectId, updater)} />;
     }
   };
 
@@ -791,6 +790,7 @@ const App: React.FC = () => {
         
         {/* Collaboration Sidebar */}
         <div className="w-full lg:w-80 flex flex-col gap-6">
+          <GeminiChat currentUser={user!} projectContext={activeProject} />
           <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
             <div className="flex items-center gap-2 mb-4">
               <Smartphone className="w-4 h-4 text-emerald-600" />

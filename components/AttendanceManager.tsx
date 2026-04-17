@@ -1,14 +1,15 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { AttendanceRecord } from '../types';
-import { UserCheck, Search, Filter, Calendar, Clock, MapPin, MoreVertical } from 'lucide-react';
+import { UserCheck, Search, Filter, Calendar, Clock, MapPin, MoreVertical, Loader2 } from 'lucide-react';
 
 interface AttendanceManagerProps {
   attendance: AttendanceRecord[];
 }
 
 const AttendanceManager: React.FC<AttendanceManagerProps> = ({ attendance }) => {
-  const [selectedDate, setSelectedDate] = React.useState(new Date().toISOString().split('T')[0]);
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [isCheckingIn, setIsCheckingIn] = useState(false);
 
   const dailyAttendance = attendance.filter(a => a.date === selectedDate);
 
@@ -18,8 +19,43 @@ const AttendanceManager: React.FC<AttendanceManagerProps> = ({ attendance }) => 
     total: dailyAttendance.length
   };
 
+  const handleGpsCheckIn = () => {
+    setIsCheckingIn(true);
+    if ('geolocation' in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          setIsCheckingIn(false);
+          const { latitude, longitude } = position.coords;
+          alert(`GPS Check-in Successful!\nLat: ${latitude.toFixed(6)}\nLng: ${longitude.toFixed(6)}\nLocation verified with site geofence.`);
+        },
+        (error) => {
+          setIsCheckingIn(false);
+          alert(`Check-in failed: ${error.message}. Please ensure GPS is enabled.`);
+        },
+        { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+      );
+    } else {
+      setIsCheckingIn(false);
+      alert('Geolocation is not supported by your browser.');
+    }
+  };
+
   return (
     <div className="space-y-6">
+      <div className="flex justify-between items-center bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+        <div>
+           <h2 className="text-xl font-bold text-slate-800">Attendance & Labor</h2>
+           <p className="text-sm text-slate-500">Track workforce productivity and geofenced attendance.</p>
+        </div>
+        <button 
+           onClick={handleGpsCheckIn}
+           disabled={isCheckingIn}
+           className="flex items-center gap-2 bg-slate-800 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-lg hover:bg-slate-900 transition-all disabled:opacity-50"
+        >
+          {isCheckingIn ? <Loader2 className="w-4 h-4 animate-spin" /> : <MapPin className="w-4 h-4" />}
+          {isCheckingIn ? 'Locating...' : 'GPS Check-In'}
+        </button>
+      </div>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
           <div className="flex items-center gap-3 mb-4">

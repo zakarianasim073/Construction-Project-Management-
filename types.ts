@@ -371,6 +371,11 @@ export interface ExtractedDPR {
   materials?: ExtractedMaterial[]; // Structured extracted materials
 }
 
+export interface ChatMessage {
+  role: 'user' | 'model';
+  parts: { text: string }[];
+}
+
 export interface ExtractedBill {
   entityName?: string;
   amount?: number;

@@ -22,7 +22,7 @@ import {
   Leaf
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
-import { generateProjectInsights } from '../services/geminiService';
+import { generateProjectInsights, generatePredictiveRiskAssessment } from '../services/geminiService';
 import ReactMarkdown from 'react-markdown';
 import RiskAssessmentComponent from './RiskAssessment';
 import WeatherWidget from './WeatherWidget';
@@ -31,6 +31,7 @@ interface DashboardProps {
   data: ProjectState;
   onApplySuggestion: (suggestionId: string) => void;
   onDismissSuggestion: (suggestionId: string) => void;
+  onUpdateProject?: (updater: (proj: ProjectState) => ProjectState) => void;
 }
 
 // Helper for Gantt Chart
@@ -105,15 +106,15 @@ const ProjectGantt: React.FC<{ data: ProjectState }> = ({ data }) => {
 
   return (
     <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
-      <div className="px-6 py-4 border-b border-slate-200 bg-slate-50 flex justify-between items-center">
+      <div className="px-6 py-4 border-b border-slate-200 bg-slate-50/50 flex justify-between items-center">
         <div className="flex items-center gap-2">
-           <BarChart3 className="w-5 h-5 text-indigo-600" />
-           <h3 className="font-semibold text-slate-800">Project Timeline & Progress</h3>
+           <BarChart3 className="w-5 h-5 text-blue-600" />
+           <h3 className="font-bold text-slate-900 tracking-tight">Timeline & Progress</h3>
         </div>
-        <div className="flex items-center gap-3 text-xs">
-           <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-indigo-500"></div> High Prio</div>
-           <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-blue-400"></div> Normal</div>
-           <div className="flex items-center gap-1"><div className="w-2 h-0.5 bg-red-500"></div> Today</div>
+        <div className="flex items-center gap-3 text-[10px] font-bold uppercase tracking-wider text-slate-500">
+           <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-blue-600"></div> High Priority</div>
+           <div className="flex items-center gap-1.5"><div className="w-2.5 h-2.5 rounded-full bg-blue-400"></div> Scheduled</div>
+           <div className="flex items-center gap-1.5 text-rose-500"><div className="w-2.5 h-0.5 bg-rose-500"></div> Today</div>
         </div>
       </div>
       
@@ -246,9 +247,10 @@ const ProjectGantt: React.FC<{ data: ProjectState }> = ({ data }) => {
   );
 };
 
-const Dashboard: React.FC<DashboardProps> = ({ data, onApplySuggestion, onDismissSuggestion }) => {
+const Dashboard: React.FC<DashboardProps> = ({ data, onApplySuggestion, onDismissSuggestion, onUpdateProject }) => {
   const [insight, setInsight] = useState<string | null>(null);
   const [loadingInsight, setLoadingInsight] = useState(false);
+  const [loadingRisk, setLoadingRisk] = useState(false);
 
   // Calculate high-level metrics
   const totalPlannedValue = data.boq.reduce((sum, item) => sum + (item.plannedQty * item.rate), 0);
@@ -267,8 +269,8 @@ const Dashboard: React.FC<DashboardProps> = ({ data, onApplySuggestion, onDismis
       pendingValue: (item.plannedQty - item.executedQty) * item.rate,
       progress: (item.executedQty / item.plannedQty) * 100
     }))
-    .sort((a, b) => b.pendingValue - a.pendingValue) // Sort by highest pending value
-    .slice(0, 5); // Top 5
+    .sort((a, b) => b.pendingValue - a.pendingValue)
+    .slice(0, 5);
 
   const chartData = [
     { name: 'Planned', amount: totalPlannedValue },
@@ -284,146 +286,166 @@ const Dashboard: React.FC<DashboardProps> = ({ data, onApplySuggestion, onDismis
     setLoadingInsight(false);
   };
 
+  const handleGenerateRisks = async () => {
+    if (!onUpdateProject) return;
+    setLoadingRisk(true);
+    const result = await generatePredictiveRiskAssessment(data);
+    if (result) {
+      onUpdateProject(proj => ({ ...proj, riskAssessment: result }));
+    }
+    setLoadingRisk(false);
+  };
+
   const getPriorityColor = (p: Priority) => {
     switch(p) {
-      case 'HIGH': return 'bg-red-50 text-red-700 border-red-200';
-      case 'MEDIUM': return 'bg-amber-50 text-amber-700 border-amber-200';
-      case 'LOW': return 'bg-blue-50 text-blue-700 border-blue-200';
-      default: return 'bg-slate-50 text-slate-700 border-slate-200';
+      case 'HIGH': return 'bg-red-50 text-red-700 border-red-100';
+      case 'MEDIUM': return 'bg-amber-50 text-amber-700 border-amber-100';
+      case 'LOW': return 'bg-blue-50 text-blue-700 border-blue-100';
+      default: return 'bg-slate-50 text-slate-700 border-slate-100';
     }
   };
 
   const pendingSuggestions = data.aiSuggestions.filter(s => s.status === 'PENDING');
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div className="space-y-8 animate-in fade-in duration-500">
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
-          <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-bold text-slate-800">Project Engine Overview</h1>
+          <div className="flex items-center gap-3 mb-1">
+            <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Project Overview</h1>
             <div className={`px-2 py-0.5 rounded text-[10px] font-bold border uppercase tracking-wider flex items-center gap-1 ${getPriorityColor(data.priority)}`}>
               <Flag className="w-2.5 h-2.5" />
               {data.priority} Priority
             </div>
           </div>
-          <p className="text-slate-500">Intelligent control for {data.name}</p>
+          <p className="text-slate-500 font-medium">Monitoring and insights for <span className="text-slate-900">{data.name}</span></p>
         </div>
         <div className="flex items-center gap-3">
+          {onUpdateProject && (
+            <button 
+              onClick={handleGenerateRisks}
+              disabled={loadingRisk}
+              className="flex items-center gap-2 bg-slate-800 text-white px-4 py-2 rounded-lg hover:bg-slate-900 transition-colors shadow-sm text-sm font-medium disabled:opacity-50"
+            >
+              <ShieldAlert className="w-4 h-4" />
+              {loadingRisk ? 'Modeling Risks...' : 'Predict Risks'}
+            </button>
+          )}
           <button 
             onClick={handleGenerateInsights}
             disabled={loadingInsight}
-            className="flex items-center gap-2 bg-indigo-600 text-white px-5 py-2.5 rounded-xl hover:bg-indigo-700 transition-all shadow-md active:scale-95 disabled:opacity-70 font-semibold"
+            className="btn-primary flex items-center gap-2"
           >
             <Sparkles className="w-4 h-4" />
-            {loadingInsight ? 'Analyzing Data...' : 'Generate AI Insights'}
+            {loadingInsight ? 'Analyzing Data...' : 'AI Insights'}
           </button>
         </div>
       </div>
 
-      {/* Project Health Bar */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4">
-          <div className={`p-3 rounded-xl ${data.riskAssessment?.overallRiskScore && data.riskAssessment.overallRiskScore > 70 ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-600'}`}>
-            <ShieldAlert className="w-6 h-6" />
+      {/* Mini Health Dashboard */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="card p-5 flex items-center gap-4">
+          <div className={`p-3 rounded-xl ${data.riskAssessment?.overallRiskScore && data.riskAssessment.overallRiskScore > 70 ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-600'}`}>
+            <ShieldAlert className="w-5 h-5" />
           </div>
           <div>
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Risk Index</p>
-            <p className="text-lg font-bold text-slate-800">{data.riskAssessment?.overallRiskScore || 0}% Risk</p>
+            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">Risk Score</p>
+            <p className="text-xl font-bold text-slate-900">{data.riskAssessment?.overallRiskScore || 0}%</p>
           </div>
         </div>
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4">
-          <div className="p-3 bg-blue-50 text-blue-600 rounded-xl">
-             <Sun className="w-6 h-6" />
+        <div className="card p-5 flex items-center gap-4">
+          <div className="p-3 bg-amber-50 text-amber-600 rounded-xl">
+             <Sun className="w-5 h-5" />
           </div>
           <div>
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Weather Impact</p>
-            <p className="text-lg font-bold text-slate-800">
-              {data.weatherForecast?.find(f => f.impactOnSite !== 'NONE') ? 'Advisory' : 'Clear Skies'}
+            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">Weather Impact</p>
+            <p className="text-xl font-bold text-slate-900">
+              {data.weatherForecast?.find(f => f.impactOnSite !== 'NONE') ? 'Active Advisory' : 'Operational'}
             </p>
           </div>
         </div>
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4">
-          <div className="p-3 bg-emerald-50 text-emerald-600 rounded-xl">
-             <Activity className="w-6 h-6" />
+        <div className="card p-5 flex items-center gap-4 sm:col-span-2 lg:col-span-1">
+          <div className="p-3 bg-blue-50 text-blue-600 rounded-xl">
+             <Activity className="w-5 h-5" />
           </div>
           <div>
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Live Efficiency</p>
-            <p className="text-lg font-bold text-slate-800">
-              {progressPercentage > 0 ? (progressPercentage / getDaysDiff(data.startDate, new Date().toISOString()) * 100).toFixed(1) : '0.0'}% / Day
+            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">Execution Index</p>
+            <p className="text-xl font-bold text-slate-900">
+              {progressPercentage > 0 ? (progressPercentage / getDaysDiff(data.startDate, new Date().toISOString()) * 100).toFixed(1) : '0.0'}% avg.
             </p>
           </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-        <div className="xl:col-span-2 space-y-6">
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
+        <div className="xl:col-span-2 space-y-8">
             {/* KPI Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-                <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+                <div className="card p-5 flex flex-col justify-between">
                 <div className="flex justify-between items-start">
                     <div>
-                    <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Progress</p>
-                    <h3 className="text-2xl font-bold text-slate-800 mt-1">{progressPercentage}%</h3>
+                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Completed</p>
+                    <h3 className="text-2xl font-bold text-slate-900">{progressPercentage}%</h3>
                     </div>
                     <div className="p-2 bg-blue-50 text-blue-600 rounded-lg">
-                    <Activity className="w-5 h-5" />
+                    <Activity className="w-4 h-4" />
                     </div>
                 </div>
                 <div className="w-full bg-slate-100 h-1.5 mt-4 rounded-full overflow-hidden">
-                    <div className="bg-blue-500 h-full rounded-full" style={{ width: `${progressPercentage}%` }}></div>
+                    <div className="bg-blue-600 h-full rounded-full" style={{ width: `${progressPercentage}%` }}></div>
                 </div>
                 </div>
 
-                <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
+                <div className="card p-5 flex flex-col justify-between">
                 <div className="flex justify-between items-start">
                     <div>
-                    <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Value</p>
-                    <h3 className="text-2xl font-bold text-slate-800 mt-1">৳{(data.contractValue / 1000000).toFixed(2)}M</h3>
+                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Contract</p>
+                    <h3 className="text-2xl font-bold text-slate-900">৳{(data.contractValue / 1000000).toFixed(1)}M</h3>
                     </div>
                     <div className="p-2 bg-emerald-50 text-emerald-600 rounded-lg">
-                    <TrendingUp className="w-5 h-5" />
+                    <TrendingUp className="w-4 h-4" />
                     </div>
                 </div>
-                <p className="text-xs text-slate-400 mt-4">Fixed Baseline</p>
+                <p className="text-[10px] text-slate-400 font-medium mt-4">Total Budget</p>
                 </div>
 
-                <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
+                <div className="card p-5 flex flex-col justify-between">
                 <div className="flex justify-between items-start">
                     <div>
-                    <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Billed</p>
-                    <h3 className="text-2xl font-bold text-slate-800 mt-1">৳{totalBilled.toLocaleString()}</h3>
+                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Billed</p>
+                    <h3 className="text-2xl font-bold text-slate-900">৳{totalBilled > 1000 ? (totalBilled / 1000).toFixed(0) + 'k' : totalBilled}</h3>
                     </div>
                     <div className="p-2 bg-violet-50 text-violet-600 rounded-lg">
-                    <Wallet className="w-5 h-5" />
+                    <Wallet className="w-4 h-4" />
                     </div>
                 </div>
-                <p className="text-xs text-slate-400 mt-4">Invoiced to Client</p>
-                </div>
-
-                <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
-                <div className="flex justify-between items-start">
-                    <div>
-                    <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Liabilities</p>
-                    <h3 className="text-2xl font-bold text-orange-600 mt-1">৳{totalLiabilities.toLocaleString()}</h3>
-                    </div>
-                    <div className="p-2 bg-orange-50 text-orange-600 rounded-lg">
-                    <AlertCircle className="w-5 h-5" />
-                    </div>
-                </div>
-                <p className="text-xs text-slate-400 mt-4">Pending + Retention</p>
+                <p className="text-[10px] text-slate-400 font-medium mt-4">Certified Work</p>
                 </div>
 
-                <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
+                <div className="card p-5 flex flex-col justify-between">
                 <div className="flex justify-between items-start">
                     <div>
-                    <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Carbon</p>
-                    <h3 className="text-2xl font-bold text-green-600 mt-1">{data.sustainabilityMetrics?.carbonFootprint || 0}kg</h3>
+                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Liabilities</p>
+                    <h3 className="text-2xl font-bold text-rose-600">৳{totalLiabilities > 1000 ? (totalLiabilities / 1000).toFixed(0) + 'k' : totalLiabilities}</h3>
                     </div>
-                    <div className="p-2 bg-green-50 text-green-600 rounded-lg">
-                    <Leaf className="w-5 h-5" />
+                    <div className="p-2 bg-rose-50 text-rose-600 rounded-lg">
+                    <AlertCircle className="w-4 h-4" />
                     </div>
                 </div>
-                <p className="text-xs text-slate-400 mt-4">CO2 Footprint</p>
+                <p className="text-[10px] text-slate-400 font-medium mt-4">Unpaid Sum</p>
+                </div>
+
+                <div className="card p-5 flex flex-col justify-between">
+                <div className="flex justify-between items-start">
+                    <div>
+                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Emissions</p>
+                    <h3 className="text-2xl font-bold text-emerald-600">{data.sustainabilityMetrics?.carbonFootprint || 0}kg</h3>
+                    </div>
+                    <div className="p-2 bg-emerald-50 text-emerald-600 rounded-lg">
+                    <Leaf className="w-4 h-4" />
+                    </div>
+                </div>
+                <p className="text-[10px] text-slate-400 font-medium mt-4">Carbon Output</p>
                 </div>
             </div>
 
@@ -436,51 +458,51 @@ const Dashboard: React.FC<DashboardProps> = ({ data, onApplySuggestion, onDismis
             </div>
 
             {/* KEY POINTS: Pending Progress Table */}
-            <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-               <div className="px-6 py-4 border-b border-slate-200 flex justify-between items-center bg-slate-50/50">
+            <div className="card overflow-hidden">
+               <div className="px-6 py-4 border-b border-slate-200 flex justify-between items-center bg-slate-50/30">
                   <div className="flex items-center gap-2">
-                     <AlertTriangle className="w-5 h-5 text-orange-500" />
-                     <h3 className="font-bold text-slate-800">Critical Pending Work (High Priority)</h3>
+                     <AlertTriangle className="w-5 h-5 text-amber-500" />
+                     <h3 className="font-bold text-slate-900 tracking-tight">Critical Pending Work</h3>
                   </div>
-                  <span className="text-xs bg-orange-100 text-orange-700 px-2 py-1 rounded-full font-bold">Action Required</span>
+                  <span className="text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-100 px-2 py-0.5 rounded-full uppercase tracking-wider">Action Needed</span>
                </div>
                <div className="overflow-x-auto">
                  <table className="w-full text-left text-sm">
-                   <thead className="bg-slate-50 text-slate-600 font-medium border-b border-slate-200">
+                   <thead className="bg-slate-50/50 text-[10px] text-slate-500 font-bold uppercase tracking-widest border-b border-slate-200">
                      <tr>
-                       <th className="px-6 py-3">BOQ Item</th>
-                       <th className="px-6 py-3 text-right">Pending Qty</th>
-                       <th className="px-6 py-3 text-right">Pending Value</th>
-                       <th className="px-6 py-3">Status</th>
+                       <th className="px-6 py-4">Item Description</th>
+                       <th className="px-6 py-4 text-right">Balance</th>
+                       <th className="px-6 py-4 text-right">Value</th>
+                       <th className="px-6 py-4 text-right">Progress</th>
                      </tr>
                    </thead>
                    <tbody className="divide-y divide-slate-100">
                      {pendingHighPriorityItems.length > 0 ? pendingHighPriorityItems.map(item => (
-                       <tr key={item.id} className="hover:bg-slate-50 group">
-                         <td className="px-6 py-3">
-                           <div className="font-medium text-slate-800 line-clamp-1">{item.description}</div>
-                           <div className="text-xs text-slate-400">{item.id}</div>
+                       <tr key={item.id} className="hover:bg-slate-50 group transition-colors">
+                         <td className="px-6 py-4">
+                           <div className="font-bold text-slate-800 line-clamp-1">{item.description}</div>
+                           <div className="text-[10px] text-slate-400 font-mono tracking-tighter uppercase">{item.id}</div>
                          </td>
-                         <td className="px-6 py-3 text-right text-slate-600 font-mono">
-                           {item.pendingQty.toLocaleString()} <span className="text-[10px] text-slate-400">{item.unit}</span>
+                         <td className="px-6 py-4 text-right text-slate-600 font-mono text-xs">
+                           {item.pendingQty.toLocaleString()} <span className="text-[10px] text-slate-400 uppercase tracking-tighter">{item.unit}</span>
                          </td>
-                         <td className="px-6 py-3 text-right font-bold text-orange-600 font-mono">
+                         <td className="px-6 py-4 text-right font-bold text-slate-900 font-mono text-xs">
                            ৳{item.pendingValue.toLocaleString()}
                          </td>
-                         <td className="px-6 py-3">
-                           <div className="flex items-center gap-2">
-                             <div className="w-16 h-1.5 bg-slate-200 rounded-full overflow-hidden">
-                               <div className="h-full bg-blue-500" style={{ width: `${item.progress}%` }}></div>
+                         <td className="px-6 py-4">
+                           <div className="flex items-center justify-end gap-3">
+                             <div className="w-16 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                               <div className="h-full bg-blue-600 rounded-full" style={{ width: `${item.progress}%` }}></div>
                              </div>
-                             <span className="text-xs text-slate-500">{item.progress.toFixed(0)}%</span>
+                             <span className="text-xs font-bold text-slate-500 w-8 text-right">{item.progress.toFixed(0)}%</span>
                            </div>
                          </td>
                        </tr>
                      )) : (
                        <tr>
-                         <td colSpan={4} className="p-8 text-center text-slate-400">
-                           <Check className="w-8 h-8 mx-auto mb-2 text-emerald-400" />
-                           No high-priority pending items found. Good job!
+                         <td colSpan={4} className="p-12 text-center text-slate-400">
+                           <Check className="w-10 h-10 mx-auto mb-3 text-emerald-400 opacity-50" />
+                           <p className="font-medium">No high-priority pending items detected.</p>
                          </td>
                        </tr>
                      )}
@@ -490,22 +512,41 @@ const Dashboard: React.FC<DashboardProps> = ({ data, onApplySuggestion, onDismis
             </div>
 
             {/* Financial Chart */}
-            <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-                <h3 className="text-lg font-semibold text-slate-800 mb-6">Financial Snapshot</h3>
+            <div className="card p-6">
+                <div className="flex items-center justify-between mb-8">
+                  <h3 className="text-lg font-bold text-slate-900 tracking-tight">Financial Position</h3>
+                  <div className="flex gap-4">
+                    <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-blue-600"></div> <span className="text-[10px] font-bold text-slate-500 uppercase tracking-tighter">Budget</span></div>
+                    <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-emerald-600"></div> <span className="text-[10px] font-bold text-slate-500 uppercase tracking-tighter">Done</span></div>
+                  </div>
+                </div>
                 <div className="h-64 w-full">
                 <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#64748b' }} dy={10} />
-                    <YAxis axisLine={false} tickLine={false} tick={{ fill: '#64748b' }} tickFormatter={(value) => `৳${value/1000}k`} />
-                    <Tooltip 
-                        cursor={{ fill: '#f1f5f9' }}
-                        contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                        formatter={(value: number) => `৳${value.toLocaleString()}`}
+                    <BarChart data={chartData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                    <XAxis 
+                      dataKey="name" 
+                      axisLine={false} 
+                      tickLine={false} 
+                      tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 700 }} 
+                      dy={10} 
                     />
-                    <Bar dataKey="amount" radius={[6, 6, 0, 0]} barSize={50}>
+                    <YAxis 
+                      axisLine={false} 
+                      tickLine={false} 
+                      tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 700 }} 
+                      tickFormatter={(value) => `৳${value >= 1000000 ? (value/1000000).toFixed(1) + 'M' : (value/1000).toFixed(0) + 'k'}`} 
+                    />
+                    <Tooltip 
+                        cursor={{ fill: '#f8fafc' }}
+                        contentStyle={{ borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', padding: '12px' }}
+                        labelStyle={{ fontWeight: 800, color: '#0f172a', marginBottom: '4px', fontSize: '12px' }}
+                        itemStyle={{ fontSize: '11px', fontWeight: 600 }}
+                        formatter={(value: number) => [`৳${value.toLocaleString()}`, 'Amount']}
+                    />
+                    <Bar dataKey="amount" radius={[4, 4, 0, 0]} barSize={40}>
                         {chartData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={['#3b82f6', '#10b981', '#8b5cf6', '#f97316'][index]} />
+                        <Cell key={`cell-${index}`} fill={['#2563eb', '#059669', '#7c3aed', '#ea580c'][index]} />
                         ))}
                     </Bar>
                     </BarChart>
@@ -514,13 +555,18 @@ const Dashboard: React.FC<DashboardProps> = ({ data, onApplySuggestion, onDismis
             </div>
 
             {insight && (
-                <div className="bg-white border border-indigo-100 rounded-xl p-6 shadow-sm relative overflow-hidden animate-in slide-in-from-bottom-5">
-                <div className="absolute top-0 left-0 w-1 h-full bg-indigo-500"></div>
-                <h3 className="text-lg font-semibold text-indigo-900 mb-3 flex items-center gap-2">
-                    <Sparkles className="w-5 h-5 text-indigo-500" />
-                    AI Insight Report
-                </h3>
-                <div className="prose prose-indigo max-w-none text-slate-700 whitespace-pre-wrap text-sm leading-relaxed">
+                <div className="bg-white border border-slate-200 rounded-2xl p-8 shadow-sm relative overflow-hidden animate-in slide-in-from-bottom-5">
+                <div className="absolute top-0 left-0 w-1.5 h-full bg-blue-600"></div>
+                <div className="flex items-center gap-3 mb-6">
+                    <div className="p-2 bg-blue-50 rounded-lg">
+                      <Sparkles className="w-5 h-5 text-blue-600" />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-bold text-slate-900 tracking-tight">AI Strategy & Insights</h3>
+                      <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest leading-none">Generative Analysis</p>
+                    </div>
+                </div>
+                <div className="prose prose-slate max-w-none text-slate-700 text-sm leading-relaxed">
                     <ReactMarkdown>{insight}</ReactMarkdown>
                 </div>
                 </div>
