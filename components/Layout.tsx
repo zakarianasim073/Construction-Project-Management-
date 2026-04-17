@@ -28,8 +28,6 @@ import {
 } from 'lucide-react';
 import { UserRole, User } from '../types';
 import { NotificationCenter } from './Collaboration';
-import { auth } from '../firebase';
-import { signOut } from 'firebase/auth';
 
 interface LayoutProps {
   children: React.ReactNode;

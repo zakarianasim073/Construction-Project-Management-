@@ -1,9 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { db, auth, handleFirestoreError, OperationType } from '../firebase';
-import { collection, query, where, orderBy, onSnapshot, addDoc, serverTimestamp, updateDoc, doc, deleteDoc, setDoc } from 'firebase/firestore';
 import { Comment, Notification, User } from '../types';
-import { MessageSquare, Bell, Send, X, CheckCircle2, User as UserIcon, Clock, Trash2 } from 'lucide-react';
-import { formatDistanceToNow } from 'date-fns';
+import { MessageSquare, Bell, Send, CheckCircle2, User as UserIcon, Clock, Trash2 } from 'lucide-react';
+import { useLocalCollection } from '../hooks/useLocalCollection';
 
 interface CollaborationProps {
   projectId: string;
@@ -13,67 +11,39 @@ interface CollaborationProps {
 }
 
 export const CommentSection: React.FC<CollaborationProps> = ({ projectId, targetId, targetType, currentUser }) => {
-  const [comments, setComments] = useState<Comment[]>([]);
+  const { data: allComments, add: addComment, remove: removeComment } = useLocalCollection<Comment & { id: string }>(`comments_${projectId}`);
   const [newComment, setNewComment] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  useEffect(() => {
-    const path = `projects/${projectId}/comments`;
-    const q = query(
-      collection(db, path),
-      where('targetId', '==', targetId),
-      where('targetType', '==', targetType),
-      orderBy('createdAt', 'desc')
-    );
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const fetchedComments = snapshot.docs.map(doc => ({
-        ...doc.data(),
-        id: doc.id
-      })) as Comment[];
-      setComments(fetchedComments);
-    }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, path);
-    });
-
-    return () => unsubscribe();
-  }, [projectId, targetId, targetType]);
+  // Derive sorted & filtered comments
+  const comments = allComments
+    .filter(c => c.targetId === targetId && c.targetType === targetType)
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newComment.trim() || !auth.currentUser) return;
+    if (!newComment.trim() || !currentUser) return;
 
     setIsLoading(true);
-    const path = `projects/${projectId}/comments`;
     const commentId = `COMM-${Date.now()}`;
-    try {
-      await setDoc(doc(db, path, commentId), {
-        id: commentId,
-        targetId,
-        targetType,
-        authorUid: auth.currentUser.uid,
-        authorName: currentUser.name,
-        text: newComment.trim(),
-        createdAt: new Date().toISOString()
-      });
-      setNewComment('');
-      
-      // Create notification for other team members (simulated)
-      // In a real app, you'd trigger this via Cloud Functions or a separate service
-    } catch (error) {
-      handleFirestoreError(error, OperationType.CREATE, path);
-    } finally {
-      setIsLoading(false);
-    }
+    const commentData: Comment & { id: string } = {
+      id: commentId,
+      targetId,
+      targetType,
+      authorUid: currentUser.uid,
+      authorName: currentUser.name,
+      text: newComment.trim(),
+      createdAt: new Date().toISOString()
+    };
+    
+    await addComment(commentData);
+    
+    setNewComment('');
+    setIsLoading(false);
   };
 
   const handleDelete = async (commentId: string) => {
-    const path = `projects/${projectId}/comments/${commentId}`;
-    try {
-      await deleteDoc(doc(db, path));
-    } catch (error) {
-      handleFirestoreError(error, OperationType.DELETE, path);
-    }
+    await removeComment(commentId);
   };
 
   return (
@@ -103,7 +73,7 @@ export const CommentSection: React.FC<CollaborationProps> = ({ projectId, target
                       <Clock className="w-2.5 h-2.5" />
                       {new Date(comment.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </p>
-                    {auth.currentUser?.uid === comment.authorUid && (
+                    {currentUser?.uid === comment.authorUid && (
                       <button 
                         onClick={() => handleDelete(comment.id)}
                         className="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"
@@ -151,36 +121,11 @@ export const CommentSection: React.FC<CollaborationProps> = ({ projectId, target
 };
 
 export const NotificationCenter: React.FC<{ uid: string }> = ({ uid }) => {
-  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const { data: notifications, update: updateNotif } = useLocalCollection<Notification & { id: string }>(`notifications_${uid}`);
   const [isOpen, setIsOpen] = useState(false);
 
-  useEffect(() => {
-    const path = `users/${uid}/notifications`;
-    const q = query(
-      collection(db, path),
-      orderBy('createdAt', 'desc')
-    );
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const fetchedNotifs = snapshot.docs.map(doc => ({
-        ...doc.data(),
-        id: doc.id
-      })) as Notification[];
-      setNotifications(fetchedNotifs);
-    }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, path);
-    });
-
-    return () => unsubscribe();
-  }, [uid]);
-
   const markAsRead = async (id: string) => {
-    const path = `users/${uid}/notifications/${id}`;
-    try {
-      await updateDoc(doc(db, path), { isRead: true });
-    } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, path);
-    }
+    updateNotif(id, { isRead: true });
   };
 
   const unreadCount = notifications.filter(n => !n.isRead).length;

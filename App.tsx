@@ -30,16 +30,28 @@ import { CommentSection } from './components/Collaboration';
 import { MOCK_PROJECTS } from './constants';
 import { ProjectState, ProjectDocument, DPR, UserRole, BOQItem, AiSuggestion, Material, Bill, ExtractedDPR, User, Task } from './types';
 import { parseBOQDocument, analyzeDocumentContent, processWhatsAppMessage } from './services/geminiService';
-import { auth, db, handleFirestoreError, OperationType, stripUndefined } from './firebase';
-import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { collection, onSnapshot, query, addDoc, doc, setDoc, updateDoc, deleteDoc, orderBy, where, getDocFromServer } from 'firebase/firestore';
 import { MessageSquare, Send, Loader2, Smartphone, AlertCircle, LayoutDashboard, PlusCircle } from 'lucide-react';
+import { useLocalCollection } from './hooks/useLocalCollection';
+
+const stripUndefined = (obj: any): any => {
+  if (Array.isArray(obj)) return obj.map(stripUndefined);
+  if (typeof obj === 'object' && obj !== null) {
+    const res: any = {};
+    for (const key in obj) {
+      if (obj[key] !== undefined) res[key] = stripUndefined(obj[key]);
+    }
+    return res;
+  }
+  return obj;
+};
 
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [isAuthReady, setIsAuthReady] = useState(false);
   const [activeTab, setActiveTab] = useState('dashboard');
-  const [projects, setProjects] = useState<ProjectState[]>([]);
+  
+  const { data: projectsData, add: addProject, update: updateProjectStorage } = useLocalCollection<ProjectState>('projects');
+  
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
   const [activeProjectRole, setActiveProjectRole] = useState<UserRole | null>(null);
   const [activeProjectTasks, setActiveProjectTasks] = useState<Task[]>([]);
@@ -47,157 +59,52 @@ const App: React.FC = () => {
   const [isSimulatingWhatsApp, setIsSimulatingWhatsApp] = useState(false);
   const [whatsappMessage, setWhatsappMessage] = useState('');
   const [selectedDocId, setSelectedDocId] = useState<string | null>(null);
-  const [connectionError, setConnectionError] = useState<string | null>(null);
 
-  // Connection Test
+  // Connection Test omitted since Firebase is removed
+  // Auth Listener replaced with short initialization
   useEffect(() => {
-    const testConnection = async () => {
-      try {
-        await getDocFromServer(doc(db, '_connection_test_', 'ping'));
-      } catch (error: any) {
-        if (error.message?.includes('the client is offline')) {
-          setConnectionError("Firebase connection failed. Please check your project configuration.");
-        }
-      }
-    };
-    testConnection();
+     setIsAuthReady(true);
   }, []);
 
-  // Auth Listener
+  // Sync Projects
+  const projects = projectsData;
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
-      if (firebaseUser) {
-        // User is logged in, fetch profile from Firestore
-        const userRef = doc(db, 'users', firebaseUser.uid);
-        onSnapshot(userRef, (docSnap) => {
-          if (docSnap.exists()) {
-            setUser(docSnap.data() as User);
-          }
-          setIsAuthReady(true);
-        }, (error) => {
-          handleFirestoreError(error, OperationType.GET, `users/${firebaseUser.uid}`);
-          setIsAuthReady(true);
-        });
-      } else {
-        setUser(null);
-        setIsAuthReady(true);
-      }
-    });
-    return () => unsubscribe();
-  }, []);
-
-  // Projects Listener
-  useEffect(() => {
-    if (!user || !user.uid) return;
-    const q = query(
-      collection(db, 'projects'), 
-      where('memberUids', 'array-contains', user.uid),
-      orderBy('name')
-    );
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const fetchedProjects = snapshot.docs.map(doc => ({
-        ...doc.data(),
-        id: doc.id,
-        aiSuggestions: doc.data().aiSuggestions || [],
-        documents: doc.data().documents || [],
-        dprs: doc.data().dprs || [],
-        boq: doc.data().boq || [],
-        materials: doc.data().materials || [],
-        bills: doc.data().bills || [],
-        liabilities: doc.data().liabilities || [],
-        milestones: doc.data().milestones || [],
-        subContractors: doc.data().subContractors || [],
-        purchaseOrders: doc.data().purchaseOrders || [],
-        qualityChecks: doc.data().qualityChecks || [],
-        safetyChecks: doc.data().safetyChecks || [],
-        photoLogs: doc.data().photoLogs || [],
-        equipment: doc.data().equipment || [],
-        attendance: doc.data().attendance || [],
-        changeOrders: doc.data().changeOrders || [],
-        vendors: doc.data().vendors || [],
-        riskAssessment: doc.data().riskAssessment || null,
-        weatherForecast: doc.data().weatherForecast || [],
-        sustainabilityMetrics: doc.data().sustainabilityMetrics || null,
-        bimModels: doc.data().bimModels || []
-      })) as ProjectState[];
-      
-      if (fetchedProjects.length === 0 && projects.length === 0) {
-        // Seed with mock data if empty
-        MOCK_PROJECTS.forEach(async (p) => {
-          const projectData = stripUndefined({ ...p, ownerUid: user.uid });
-          await setDoc(doc(db, 'projects', p.id), projectData);
-        });
-      } else {
-        setProjects(fetchedProjects);
-      }
-    }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, 'projects');
-    });
-    return () => unsubscribe();
-  }, [user]);
+    if (projects.length === 0 && user) {
+       MOCK_PROJECTS.forEach(p => {
+          addProject({ ...p, ownerUid: user.uid } as any);
+       });
+    }
+  }, [user, projects.length, addProject]);
 
   // Project Role Listener
   useEffect(() => {
-    if (!user || !activeProjectId) {
-      setActiveProjectRole(null);
-      return;
+    if (user && activeProjectId) {
+       // Local mode: give them the role they logged in with for everything
+       setActiveProjectRole(user.role);
     }
-    
-    const memberRef = doc(db, 'projects', activeProjectId, 'members', user.uid || '');
-    const unsubscribe = onSnapshot(memberRef, (docSnap) => {
-      if (docSnap.exists()) {
-        setActiveProjectRole(docSnap.data().role as UserRole);
-      } else {
-        // Fallback to global role if member record doesn't exist yet (shouldn't happen for owner)
-        setActiveProjectRole(user.role);
-      }
-    });
-    
-    return () => unsubscribe();
   }, [user, activeProjectId]);
 
-  // Active Project Tasks Listener
+  // Tasks local fetch
   useEffect(() => {
-    if (!activeProjectId) {
-      setActiveProjectTasks([]);
-      return;
-    }
-    const q = query(collection(db, `projects/${activeProjectId}/tasks`), orderBy('createdAt', 'desc'));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const fetchedTasks = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id })) as Task[];
-      setActiveProjectTasks(fetchedTasks);
-    }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, `projects/${activeProjectId}/tasks`);
-    });
-    return () => unsubscribe();
-  }, [activeProjectId]);
-
-  // Active Project Members Listener
-  useEffect(() => {
-    if (!activeProjectId) {
-      setActiveProjectMembers([]);
-      return;
-    }
-    const q = collection(db, `projects/${activeProjectId}/members`);
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const members = snapshot.docs.map(doc => ({
-        uid: doc.id,
-        name: doc.data().name,
-        role: doc.data().role,
-        avatar: doc.data().avatar,
-        email: doc.data().email
-      })) as User[];
-      setActiveProjectMembers(members);
-    }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, `projects/${activeProjectId}/members`);
-    });
-    return () => unsubscribe();
+     const fetchTasks = async () => {
+        try {
+           const res = await fetch(`/api/collections/tasks_${activeProjectId}`);
+           const data = await res.json();
+           setActiveProjectTasks(data || []);
+        } catch (e) {
+           console.error("Failed to fetch tasks", e);
+        }
+     };
+     if (activeProjectId) {
+         fetchTasks();
+     }
   }, [activeProjectId]);
 
   const activeProject = projects.find(p => p.id === activeProjectId);
 
   const handleLogout = async () => {
-    await signOut(auth);
+    localStorage.removeItem('local_user_uid');
+    setUser(null);
     setActiveProjectId(null);
   };
 
@@ -230,22 +137,8 @@ const App: React.FC = () => {
       bimModels: []
     };
     
-    try {
-      await setDoc(doc(db, 'projects', id), stripUndefined(project));
-      
-      // Also create the member record for the owner
-      await setDoc(doc(db, 'projects', id, 'members', user.uid), {
-        uid: user.uid,
-        name: user.name,
-        role: user.role,
-        avatar: user.avatar || null,
-        joinedAt: new Date().toISOString()
-      });
-
-      setActiveProjectId(id);
-    } catch (error) {
-      handleFirestoreError(error, OperationType.CREATE, `projects/${id}`);
-    }
+    addProject(stripUndefined(project));
+    setActiveProjectId(id);
   };
 
   const handleUpdateProject = async (projectId: string, updater: (proj: ProjectState) => ProjectState) => {
@@ -253,13 +146,7 @@ const App: React.FC = () => {
     if (!project) return;
     
     const updated = updater(project);
-    const finalData = stripUndefined(updated);
-
-    try {
-      await updateDoc(doc(db, 'projects', projectId), finalData);
-    } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, `projects/${projectId}`);
-    }
+    updateProjectStorage(projectId, stripUndefined(updated));
   };
 
   const handleAddDocument = async (newDoc: ProjectDocument) => {
@@ -597,12 +484,6 @@ const App: React.FC = () => {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50">
         <Loader2 className="w-10 h-10 text-blue-600 animate-spin mb-4" />
-        {connectionError && (
-          <div className="max-w-md p-4 bg-red-50 border border-red-200 rounded-xl flex items-start gap-3">
-            <AlertCircle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
-            <p className="text-sm text-red-700 font-medium">{connectionError}</p>
-          </div>
-        )}
       </div>
     );
   }

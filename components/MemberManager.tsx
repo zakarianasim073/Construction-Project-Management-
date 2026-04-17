@@ -1,31 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { db, handleFirestoreError, OperationType } from '../firebase';
-import { 
-  collection, 
-  query, 
-  where, 
-  onSnapshot, 
-  doc, 
-  setDoc, 
-  updateDoc, 
-  deleteDoc, 
-  getDocs,
-  addDoc,
-  arrayUnion,
-  arrayRemove
-} from 'firebase/firestore';
 import { ProjectMember, User, UserRole } from '../types';
 import { 
   UserPlus, 
   Shield, 
   Trash2, 
   Search, 
-  Loader2, 
   CheckCircle2, 
   XCircle,
   User as UserIcon,
   Crown
 } from 'lucide-react';
+import { useLocalCollection } from '../hooks/useLocalCollection';
 
 interface MemberManagerProps {
   projectId: string;
@@ -34,127 +19,76 @@ interface MemberManagerProps {
 }
 
 const MemberManager: React.FC<MemberManagerProps> = ({ projectId, ownerUid, currentUserUid }) => {
-  const [members, setMembers] = useState<ProjectMember[]>([]);
+  const { data: members, add, update, remove } = useLocalCollection<ProjectMember & { id: string }>(`members_${projectId}`);
   const [searchEmail, setSearchEmail] = useState('');
-  const [isSearching, setIsSearching] = useState(false);
   const [searchResult, setSearchResult] = useState<User | null>(null);
   const [searchError, setSearchError] = useState<string | null>(null);
-  const [isAdding, setIsAdding] = useState(false);
+  const [allUsers, setAllUsers] = useState<User[]>([]);
 
   const isOwner = currentUserUid === ownerUid;
 
   useEffect(() => {
-    const path = `projects/${projectId}/members`;
-    const unsubscribe = onSnapshot(collection(db, path), (snapshot) => {
-      const fetchedMembers = snapshot.docs.map(doc => ({
-        ...doc.data(),
-        uid: doc.id
-      })) as ProjectMember[];
-      setMembers(fetchedMembers);
-    }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, path);
-    });
-
-    return () => unsubscribe();
-  }, [projectId]);
+    // Fetch all users for search (ideally this is a backend search API, but we'll fetch entire mock users collection for now)
+    fetch('/api/collections/users')
+      .then(res => res.json())
+      .then(result => setAllUsers(result || []))
+      .catch(console.error);
+  }, []);
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!searchEmail.trim()) return;
 
-    setIsSearching(true);
     setSearchError(null);
     setSearchResult(null);
 
-    try {
-      const q = query(collection(db, 'users'), where('email', '==', searchEmail.trim()));
-      const snapshot = await getDocs(q);
-      
-      if (snapshot.empty) {
-        setSearchError('No user found with this email address.');
-      } else {
-        const userData = snapshot.docs[0].data() as User;
-        // Check if already a member
-        if (members.some(m => m.uid === userData.uid)) {
-          setSearchError('This user is already a member of the project.');
+    // Mock search against users collection
+    if (searchEmail === 'mock@example.com') {
+         setSearchResult({ uid: 'mock-1', name: 'Mock User', role: 'ENGINEER', avatar: '', email: 'mock@example.com' });
+         return;
+    }
+
+    const found = allUsers.find(u => u.email === searchEmail || u.name?.toLowerCase() === searchEmail.toLowerCase());
+    if (found) {
+        if (members.some(m => m.uid === found.uid)) {
+           setSearchError('This user is already a member of the project.');
         } else {
-          setSearchResult({ ...userData, uid: snapshot.docs[0].id });
+           setSearchResult(found);
         }
-      }
-    } catch (error) {
-      console.error("Search failed", error);
-      setSearchError('An error occurred while searching.');
-    } finally {
-      setIsSearching(false);
+    } else {
+        setSearchError('User not found. For offline simulation, type "mock@example.com"');
     }
   };
 
   const handleAddMember = async (user: User) => {
     if (!user.uid) return;
-    setIsAdding(true);
     
-    try {
-      // 1. Add to members subcollection
-      const memberData: ProjectMember = {
-        uid: user.uid,
-        name: user.name,
-        role: user.role,
-        avatar: user.avatar || null,
-        joinedAt: new Date().toISOString()
-      };
-      
-      await setDoc(doc(db, `projects/${projectId}/members`, user.uid), memberData);
-      
-      // 2. Add to project's memberUids array
-      await updateDoc(doc(db, 'projects', projectId), {
-        memberUids: arrayUnion(user.uid)
-      });
+    // We append the standard useLocalCollection ID to map it uniquely
+    const memberData: ProjectMember & { id: string } = {
+      id: user.uid, // Map uid to the collection's string ID
+      uid: user.uid,
+      name: user.name,
+      role: user.role,
+      avatar: user.avatar || null,
+      joinedAt: new Date().toISOString()
+    };
+    
+    add(memberData);
 
-      // 3. Send notification
-      await addDoc(collection(db, `users/${user.uid}/notifications`), {
-        type: 'TASK_ASSIGNED', // Reusing type for now or could add PROJECT_INVITE
-        title: 'Added to Project',
-        message: `You have been added to the project.`,
-        targetId: projectId,
-        isRead: false,
-        createdAt: new Date().toISOString()
-      });
-
-      setSearchResult(null);
-      setSearchEmail('');
-    } catch (error) {
-      handleFirestoreError(error, OperationType.CREATE, `projects/${projectId}/members/${user.uid}`);
-    } finally {
-      setIsAdding(false);
-    }
+    setSearchResult(null);
+    setSearchEmail('');
   };
 
   const handleUpdateRole = async (memberUid: string, newRole: UserRole) => {
-    try {
-      await updateDoc(doc(db, `projects/${projectId}/members`, memberUid), {
-        role: newRole
-      });
-    } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, `projects/${projectId}/members/${memberUid}`);
-    }
+    // Map using memberUid as id 
+    update(memberUid, { role: newRole });
   };
 
   const handleRemoveMember = async (memberUid: string) => {
     if (memberUid === ownerUid) return; // Cannot remove owner
-    
     if (!window.confirm('Are you sure you want to remove this member from the project?')) return;
 
-    try {
-      // 1. Remove from subcollection
-      await deleteDoc(doc(db, `projects/${projectId}/members`, memberUid));
-      
-      // 2. Remove from memberUids array
-      await updateDoc(doc(db, 'projects', projectId), {
-        memberUids: arrayRemove(memberUid)
-      });
-    } catch (error) {
-      handleFirestoreError(error, OperationType.DELETE, `projects/${projectId}/members/${memberUid}`);
-    }
+    remove(memberUid);
   };
 
   return (
@@ -179,10 +113,10 @@ const MemberManager: React.FC<MemberManagerProps> = ({ projectId, ownerUid, curr
             </div>
             <button
               type="submit"
-              disabled={isSearching || !searchEmail.trim()}
+              disabled={!searchEmail.trim()}
               className="px-6 py-2.5 bg-blue-600 text-white rounded-xl font-bold text-sm hover:bg-blue-700 transition-all disabled:opacity-50 flex items-center gap-2"
             >
-              {isSearching ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
+              <Search className="w-4 h-4" />
               Search
             </button>
           </form>
@@ -211,10 +145,9 @@ const MemberManager: React.FC<MemberManagerProps> = ({ projectId, ownerUid, curr
               </div>
               <button
                 onClick={() => handleAddMember(searchResult)}
-                disabled={isAdding}
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg font-bold text-xs hover:bg-blue-700 transition-all flex items-center gap-2"
               >
-                {isAdding ? <Loader2 className="w-3 h-3 animate-spin" /> : <UserPlus className="w-3 h-3" />}
+                <UserPlus className="w-3 h-3" />
                 Add to Project
               </button>
             </div>

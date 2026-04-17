@@ -101,9 +101,9 @@ const ProjectList: React.FC<ProjectListProps> = ({ projects, onSelectProject, on
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {projects.map((project) => (
+        {projects.map((project, index) => (
           <div 
-            key={project.id}
+            key={project.id || `project-${index}`}
             onClick={() => onSelectProject(project.id)}
             className="group bg-white rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-all cursor-pointer overflow-hidden relative"
           >

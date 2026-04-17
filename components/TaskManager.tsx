@@ -1,24 +1,20 @@
 import React, { useState, useEffect } from 'react';
-import { db, auth, handleFirestoreError, OperationType } from '../firebase';
-import { collection, query, where, orderBy, onSnapshot, addDoc, updateDoc, doc, deleteDoc, getDocs, setDoc } from 'firebase/firestore';
-import { Task, User, ProjectState } from '../types';
+import { Task, User } from '../types';
 import { 
   Plus, 
   Search, 
-  Filter, 
   Calendar, 
   User as UserIcon, 
   CheckCircle2, 
   Clock, 
   AlertCircle,
-  MoreVertical,
   Trash2,
   CheckCircle,
   MessageSquare,
-  X,
-  Loader2
+  X
 } from 'lucide-react';
 import { CommentSection } from './Collaboration';
+import { useLocalCollection } from '../hooks/useLocalCollection';
 
 interface TaskManagerProps {
   projectId: string;
@@ -26,7 +22,7 @@ interface TaskManagerProps {
 }
 
 const TaskManager: React.FC<TaskManagerProps> = ({ projectId, currentUser }) => {
-  const [tasks, setTasks] = useState<Task[]>([]);
+  const { data: tasks, add: addTask, update: updateTask, remove: removeTask } = useLocalCollection<Task & { id: string }>(`tasks_${projectId}`);
   const [users, setUsers] = useState<User[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
@@ -42,52 +38,36 @@ const TaskManager: React.FC<TaskManagerProps> = ({ projectId, currentUser }) => 
   });
 
   useEffect(() => {
-    const path = `projects/${projectId}/tasks`;
-    const q = query(collection(db, path), orderBy('createdAt', 'desc'));
-    
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const fetchedTasks = snapshot.docs.map(doc => ({
-        ...doc.data(),
-        id: doc.id
-      })) as Task[];
-      setTasks(fetchedTasks);
-    }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, path);
-    });
-
-    return () => unsubscribe();
-  }, [projectId]);
-
-  useEffect(() => {
-    const fetchUsers = async () => {
-      const q = query(collection(db, 'users'));
-      const snapshot = await getDocs(q);
-      setUsers(snapshot.docs.map(doc => doc.data() as User));
-    };
-    fetchUsers();
-  }, []);
+    // In local mode, fetch from generic API
+    fetch('/api/collections/users')
+      .then(res => res.json())
+      .then(data => setUsers(data && data.length > 0 ? data : [currentUser]))
+      .catch(e => {
+        console.error(e);
+        setUsers([currentUser]);
+      });
+  }, [currentUser]);
 
   const handleCreateTask = async (e: React.FormEvent) => {
     e.preventDefault();
-    const path = `projects/${projectId}/tasks`;
     const taskId = `TASK-${Date.now()}`;
-    try {
-      const taskData = {
-        id: taskId,
-        ...newTask,
-        projectId,
-        status: 'PENDING',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      };
-      await setDoc(doc(db, path, taskId), taskData);
-      
-      // Create notification for assigned user
-      if (newTask.assignedTo) {
-        const notifId = `NOTIF-${Date.now()}`;
-        const notifPath = `users/${newTask.assignedTo}/notifications`;
-        await setDoc(doc(db, notifPath, notifId), {
-          id: notifId,
+    const taskData: Task & { id: string } = {
+      id: taskId,
+      ...newTask,
+      projectId,
+      status: 'PENDING',
+      createdAt: new Date().toISOString()
+    };
+    
+    await addTask(taskData);
+
+    // Create a local notification via API
+    if (newTask.assignedTo) {
+      await fetch(`/api/collections/notifications_${newTask.assignedTo}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: `NOTIF-${Date.now()}`,
           recipientUid: newTask.assignedTo,
           type: 'TASK_ASSIGNED',
           title: 'New Task Assigned',
@@ -95,47 +75,27 @@ const TaskManager: React.FC<TaskManagerProps> = ({ projectId, currentUser }) => 
           targetId: taskId,
           isRead: false,
           createdAt: new Date().toISOString()
-        });
-      }
-
-      setIsModalOpen(false);
-      setNewTask({
-        title: '',
-        description: '',
-        assignedTo: '',
-        dueDate: new Date().toISOString().split('T')[0],
-        priority: 'MEDIUM'
+        })
       });
-    } catch (error) {
-      handleFirestoreError(error, OperationType.CREATE, path);
     }
+
+    setIsModalOpen(false);
+    setNewTask({
+      title: '',
+      description: '',
+      assignedTo: '',
+      dueDate: new Date().toISOString().split('T')[0],
+      priority: 'MEDIUM'
+    });
   };
 
   const handleUpdateStatus = async (taskId: string, newStatus: string) => {
-    const path = `projects/${projectId}/tasks/${taskId}`;
-    try {
-      await updateDoc(doc(db, path), { 
-        status: newStatus,
-        updatedAt: new Date().toISOString()
-      });
-
-      if (newStatus === 'COMPLETED') {
-        // Notify project owner/manager
-        // (Simplified for demo)
-      }
-    } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, path);
-    }
+    updateTask(taskId, { status: newStatus as any });
   };
 
   const handleDeleteTask = async (taskId: string) => {
-    const path = `projects/${projectId}/tasks/${taskId}`;
-    try {
-      await deleteDoc(doc(db, path));
-      if (selectedTaskId === taskId) setSelectedTaskId(null);
-    } catch (error) {
-      handleFirestoreError(error, OperationType.DELETE, path);
-    }
+    removeTask(taskId);
+    if (selectedTaskId === taskId) setSelectedTaskId(null);
   };
 
   const filteredTasks = tasks.filter(t => {
