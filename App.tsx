@@ -88,7 +88,11 @@ const App: React.FC = () => {
   useEffect(() => {
      const fetchTasks = async () => {
         try {
-           const res = await fetch(`/api/collections/tasks_${activeProjectId}`);
+           const token = localStorage.getItem('auth_token');
+           const res = await fetch(`/api/collections/tasks_${activeProjectId}`, {
+               headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+           });
+           if (!res.ok) throw new Error("Tasks fetch failed");
            const data = await res.json();
            setActiveProjectTasks(data || []);
         } catch (e) {
@@ -104,6 +108,7 @@ const App: React.FC = () => {
 
   const handleLogout = async () => {
     localStorage.removeItem('local_user_uid');
+    localStorage.removeItem('auth_token');
     setUser(null);
     setActiveProjectId(null);
   };

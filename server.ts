@@ -2,6 +2,7 @@ import express from 'express';
 import mongoose from 'mongoose';
 import { createServer as createViteServer } from 'vite';
 import path from 'path';
+import jwt from 'jsonwebtoken';
 
 async function startServer() {
   const app = express();
@@ -27,6 +28,75 @@ async function startServer() {
   app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', db: isMongoConnected ? mongoose.connection.readyState : 'in-memory' });
   });
+
+  // --- AUTH ROUTES ---
+  const JWT_SECRET = process.env.JWT_SECRET || '5aeb6c98c7622543d05e89904d09aed7b33f45a616204b31d4a18de8397c3e7d';
+
+  app.post('/api/auth/login', async (req, res) => {
+    const { name, email, role } = req.body;
+    if (!email || !name) return res.status(400).json({ error: "Name and email required" });
+
+    try {
+      let user;
+      if (!isMongoConnected) {
+        if (!inMemoryDB['users']) inMemoryDB['users'] = [];
+        user = inMemoryDB['users'].find(u => u.email === email);
+        if (!user) {
+          user = { id: `user-${Date.now()}`, uid: `user-${Date.now()}`, name, email, role, avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${name}`, createdAt: new Date().toISOString() };
+          inMemoryDB['users'].push(user);
+        }
+      } else {
+        user = await mongoose.connection.db.collection('users').findOne({ email });
+        if (!user) {
+           user = { id: `user-${Date.now()}`, uid: `user-${Date.now()}`, name, email, role, avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${name}`, createdAt: new Date().toISOString() };
+           await mongoose.connection.db.collection('users').insertOne(user);
+        }
+      }
+
+      const token = jwt.sign({ uid: user.uid, email: user.email, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
+      res.json({ token, user });
+    } catch (e) {
+      res.status(500).json({ error: "Auth failed" });
+    }
+  });
+
+  app.get('/api/auth/me', async (req, res) => {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
+    if (!token) return res.status(401).json({ error: "Missing token" });
+
+    jwt.verify(token, JWT_SECRET, async (err: any, decoded: any) => {
+      if (err) return res.status(403).json({ error: "Invalid token" });
+      try {
+          let user;
+          if (!isMongoConnected) {
+             user = (inMemoryDB['users'] || []).find(u => u.uid === decoded.uid);
+          } else {
+             user = await mongoose.connection.db.collection('users').findOne({ uid: decoded.uid });
+          }
+          if (!user) return res.status(404).json({ error: "User not found" });
+          res.json({ user });
+      } catch (e) {
+          res.status(500).json({ error: "Server error" });
+      }
+    });
+  });
+
+  // --- JWT MIDDLEWARE ---
+  const authenticateToken = (req: express.Request, res: express.Response, next: express.NextFunction) => {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
+    if (token == null) return res.status(401).json({ error: "Unauthorized" });
+
+    jwt.verify(token, JWT_SECRET, (err: any, user: any) => {
+      if (err) return res.status(403).json({ error: "Forbidden" });
+      (req as any).user = user;
+      next();
+    });
+  };
+
+  // Protect all API routes under /api/collections
+  app.use('/api/collections', authenticateToken);
 
   app.get('/api/collections/:name', async (req, res) => {
     try {

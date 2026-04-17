@@ -10,18 +10,23 @@ const Auth: React.FC<AuthProps> = ({ onUserChange }) => {
   const [name, setName] = useState('');
   const [role, setRole] = useState<UserRole>('DIRECTOR');
   
-  // Auto-login if local user id exists
+  // Auto-login if token exists
   useEffect(() => {
-    const savedUid = localStorage.getItem('local_user_uid');
-    if (savedUid) {
-      // Fetch user from DB
-      fetch('/api/collections/users')
-        .then(res => res.json())
-        .then(users => {
-          const user = users.find((u: any) => u.uid === savedUid);
-          if (user) onUserChange(user);
+    const token = localStorage.getItem('auth_token');
+    if (token) {
+      fetch('/api/auth/me', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+        .then(res => {
+          if (!res.ok) throw new Error("Invalid token");
+          return res.json();
         })
-        .catch(console.error);
+        .then(data => onUserChange(data.user))
+        .catch(err => {
+          console.error("Auto-login failed:", err);
+          localStorage.removeItem('auth_token');
+          localStorage.removeItem('local_user_uid');
+        });
     }
   }, [onUserChange]);
 
@@ -32,33 +37,20 @@ const Auth: React.FC<AuthProps> = ({ onUserChange }) => {
     const email = `${name.toLowerCase().replace(/\s+/g, '')}@buildtrack.local`;
     
     try {
-      // Check if user already exists
-      const res = await fetch('/api/collections/users');
-      const users = await res.json();
-      let user = users.find((u: any) => u.email === email);
-
-      if (!user) {
-        // Create new user
-        const newUser = {
-          id: `user-${Date.now()}`,
-          uid: `user-${Date.now()}`,
-          name: name.trim(),
-          email: email,
-          role: role,
-          avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${name}`,
-          createdAt: new Date().toISOString()
-        };
-        
-        await fetch('/api/collections/users', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(newUser)
-        });
-        user = newUser;
-      }
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: name.trim(), email, role })
+      });
       
-      localStorage.setItem('local_user_uid', user.uid);
-      onUserChange(user);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Login failed");
+
+      if (data.token && data.user) {
+        localStorage.setItem('auth_token', data.token);
+        localStorage.setItem('local_user_uid', data.user.uid);
+        onUserChange(data.user);
+      }
     } catch (e) {
       console.error("Login failed", e);
     }
