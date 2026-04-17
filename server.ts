@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 import { createServer as createViteServer } from 'vite';
 import path from 'path';
 import jwt from 'jsonwebtoken';
+import bcrypt from 'bcryptjs';
 
 async function startServer() {
   const app = express();
@@ -32,31 +33,51 @@ async function startServer() {
   // --- AUTH ROUTES ---
   const JWT_SECRET = process.env.JWT_SECRET || '5aeb6c98c7622543d05e89904d09aed7b33f45a616204b31d4a18de8397c3e7d';
 
+  app.post('/api/auth/signup', async (req, res) => {
+    const { name, email, password, role } = req.body;
+    if (!email || !password || !name) return res.status(400).json({ error: "Missing fields" });
+
+    try {
+      const passwordHash = await bcrypt.hash(password, 10);
+      let user;
+
+      if (!isMongoConnected) {
+        if (!inMemoryDB['users']) inMemoryDB['users'] = [];
+        if (inMemoryDB['users'].find(u => u.email === email)) return res.status(400).json({ error: "User exists" });
+        user = { id: `user-${Date.now()}`, uid: `user-${Date.now()}`, name, email, passwordHash, role, avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${name}`, createdAt: new Date().toISOString() };
+        inMemoryDB['users'].push(user);
+      } else {
+        if (await mongoose.connection.db.collection('users').findOne({ email })) return res.status(400).json({ error: "User exists" });
+        user = { id: `user-${Date.now()}`, uid: `user-${Date.now()}`, name, email, passwordHash, role, avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${name}`, createdAt: new Date().toISOString() };
+        await mongoose.connection.db.collection('users').insertOne(user);
+      }
+
+      res.status(201).json({ message: "User created" });
+    } catch (e) {
+      res.status(500).json({ error: "Signup failed" });
+    }
+  });
+
   app.post('/api/auth/login', async (req, res) => {
-    const { name, email, role } = req.body;
-    if (!email || !name) return res.status(400).json({ error: "Name and email required" });
+    const { email, password } = req.body;
+    if (!email || !password) return res.status(400).json({ error: "Email and password required" });
 
     try {
       let user;
       if (!isMongoConnected) {
-        if (!inMemoryDB['users']) inMemoryDB['users'] = [];
-        user = inMemoryDB['users'].find(u => u.email === email);
-        if (!user) {
-          user = { id: `user-${Date.now()}`, uid: `user-${Date.now()}`, name, email, role, avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${name}`, createdAt: new Date().toISOString() };
-          inMemoryDB['users'].push(user);
-        }
+        user = (inMemoryDB['users'] || []).find(u => u.email === email);
       } else {
         user = await mongoose.connection.db.collection('users').findOne({ email });
-        if (!user) {
-           user = { id: `user-${Date.now()}`, uid: `user-${Date.now()}`, name, email, role, avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${name}`, createdAt: new Date().toISOString() };
-           await mongoose.connection.db.collection('users').insertOne(user);
-        }
+      }
+
+      if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
+        return res.status(401).json({ error: "Invalid credentials" });
       }
 
       const token = jwt.sign({ uid: user.uid, email: user.email, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
       res.json({ token, user });
     } catch (e) {
-      res.status(500).json({ error: "Auth failed" });
+      res.status(500).json({ error: "Login failed" });
     }
   });
 

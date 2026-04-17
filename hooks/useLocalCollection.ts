@@ -25,6 +25,7 @@ export function useLocalCollection<T extends { id: string }>(collectionName: str
             headers: token ? { 'Authorization': `Bearer ${token}` } : {}
         })
             .then(res => {
+                if (res.status === 401 || res.status === 403) return []; // Not logged in
                 if (!res.ok) throw new Error("Fetch failed");
                 return res.json();
             })
