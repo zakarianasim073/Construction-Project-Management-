@@ -3,6 +3,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { ProjectState, ProjectDocument, UserRole, BOQItem, Unit, Priority } from '../types';
 import DocumentManager from './DocumentManager';
 import ChangeOrderManager from './ChangeOrderManager';
+import ManualOverrideToggle from './ManualOverrideToggle';
 import { 
   PlusCircle, 
   X, 
@@ -453,6 +454,7 @@ const MasterControl: React.FC<MasterControlProps> = ({ data, onAddDocument, onAd
 
             {canEditBOQ && (
               <>
+                <ManualOverrideToggle />
                 <button 
                   onClick={() => setIsImportModalOpen(true)}
                   className="flex items-center gap-2 bg-indigo-50 border border-indigo-200 text-indigo-700 px-3 py-1.5 rounded-lg hover:bg-indigo-100 transition-colors shadow-sm text-sm font-medium"

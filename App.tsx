@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
+import { NotificationProvider } from './contexts/NotificationContext';
 import Layout from './components/Layout';
 import Dashboard from './components/Dashboard';
 import MasterControl from './components/MasterControl';
@@ -661,8 +662,9 @@ const App: React.FC = () => {
   };
 
   return (
-    <Layout 
-      activeTab={activeTab} 
+    <NotificationProvider>
+      <Layout 
+        activeTab={activeTab} 
       setActiveTab={setActiveTab} 
       onSwitchProject={() => setActiveProjectId(null)}
       projectName={activeProject.name}
@@ -703,6 +705,7 @@ const App: React.FC = () => {
         </div>
       </div>
     </Layout>
+    </NotificationProvider>
   );
 };
 

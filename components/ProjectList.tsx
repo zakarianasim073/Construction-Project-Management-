@@ -29,6 +29,8 @@ const ProjectList: React.FC<ProjectListProps> = ({ projects, onSelectProject, on
 
   const canCreateProject = userRole === 'DIRECTOR';
 
+  console.log('Current projects IDs:', projects.map(p => p.id));
+
   const handleCreate = (e: React.FormEvent) => {
     e.preventDefault();
     onCreateProject({
@@ -101,9 +103,21 @@ const ProjectList: React.FC<ProjectListProps> = ({ projects, onSelectProject, on
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {(() => {
+          const seen = new Set();
+          const duplicates = projects.filter(p => {
+            if (seen.has(p.id)) return true;
+            seen.add(p.id);
+            return false;
+          });
+          if (duplicates.length > 0) {
+            console.warn('Duplicate project IDs found:', duplicates.map(d => d.id));
+          }
+          return null;
+        })()}
         {projects.map((project, index) => (
           <div 
-            key={project.id || `project-${index}`}
+            key={`${project.id}-${index}`}
             onClick={() => onSelectProject(project.id)}
             className="group bg-white rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-all cursor-pointer overflow-hidden relative"
           >
