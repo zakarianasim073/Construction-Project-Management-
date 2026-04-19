@@ -18,6 +18,19 @@ async function startServer() {
     await mongoose.connect(mongoURI, { serverSelectionTimeoutMS: 2000 });
     isMongoConnected = true;
     console.log('Connected to MongoDB');
+
+    // Create indexes for better performance
+    const db = mongoose.connection.db;
+    if (db) {
+      await db.collection('users').createIndex({ email: 1 }, { unique: true });
+      await db.collection('users').createIndex({ uid: 1 }, { unique: true });
+
+      const collectionsToIndex = ['projects', 'documents', 'tasks', 'comments'];
+      for (const colName of collectionsToIndex) {
+        await db.collection(colName).createIndex({ id: 1 }, { unique: true });
+      }
+      console.log('Database indexes created');
+    }
   } catch (error) {
     console.error('Failed to connect to MongoDB, falling back to in-memory store', error.message);
   }

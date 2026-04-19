@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { memo } from 'react';
 import { BimModel } from '../types';
 import { Box, Layers, Maximize2, RotateCcw, ZoomIn, ZoomOut, Search, Info, Settings, Eye, EyeOff } from 'lucide-react';
 
@@ -145,4 +145,4 @@ const BimViewer: React.FC<BimViewerProps> = ({ models }) => {
   );
 };
 
-export default BimViewer;
+export default memo(BimViewer);

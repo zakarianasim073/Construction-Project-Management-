@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useMemo, memo } from 'react';
 import { AttendanceRecord } from '../types';
 import { UserCheck, Search, Filter, Calendar, Clock, MapPin, MoreVertical, Loader2 } from 'lucide-react';
 
@@ -11,13 +11,13 @@ const AttendanceManager: React.FC<AttendanceManagerProps> = ({ attendance }) => 
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [isCheckingIn, setIsCheckingIn] = useState(false);
 
-  const dailyAttendance = attendance.filter(a => a.date === selectedDate);
+  const dailyAttendance = useMemo(() => attendance.filter(a => a.date === selectedDate), [attendance, selectedDate]);
 
-  const stats = {
+  const stats = useMemo(() => ({
     present: dailyAttendance.filter(a => a.status === 'PRESENT').length,
     absent: dailyAttendance.filter(a => a.status === 'ABSENT').length,
     total: dailyAttendance.length
-  };
+  }), [dailyAttendance]);
 
   const handleGpsCheckIn = () => {
     setIsCheckingIn(true);
@@ -177,4 +177,4 @@ const AttendanceManager: React.FC<AttendanceManagerProps> = ({ attendance }) => 
   );
 };
 
-export default AttendanceManager;
+export default memo(AttendanceManager);

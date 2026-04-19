@@ -2,32 +2,35 @@
 import React, { useState, useEffect } from 'react';
 import { NotificationProvider } from './contexts/NotificationContext';
 import Layout from './components/Layout';
-import Dashboard from './components/Dashboard';
-import MasterControl from './components/MasterControl';
-import SiteExecution from './components/SiteExecution';
-import FinancialControl from './components/FinancialControl';
-import LiabilityTracker from './components/LiabilityTracker';
-import DocumentManager from './components/DocumentManager';
 import ProjectList from './components/ProjectList';
 import Auth from './components/Auth';
-import TaskManager from './components/TaskManager';
-import MemberManager from './components/MemberManager';
-import GanttChart from './components/GanttChart';
-import FinancialAnalytics from './components/FinancialAnalytics';
-import Procurement from './components/Procurement';
-import SubcontractorPortal from './components/SubcontractorPortal';
-import QCSafety from './components/QCSafety';
-import Reporting from './components/Reporting';
-import PhotoLogs from './components/PhotoLogs';
-import EquipmentManager from './components/EquipmentManager';
-import AttendanceManager from './components/AttendanceManager';
-import ChangeOrderManager from './components/ChangeOrderManager';
-import SustainabilityTracker from './components/SustainabilityTracker';
-import BimViewer from './components/BimViewer';
-import ClientPortal from './components/ClientPortal';
-import VendorAnalytics from './components/VendorAnalytics';
-import GeminiChat from './components/GeminiChat';
-import { CommentSection } from './components/Collaboration';
+import { Suspense, lazy } from 'react';
+
+// Lazy load heavy components for better initial load performance
+const Dashboard = lazy(() => import('./components/Dashboard'));
+const MasterControl = lazy(() => import('./components/MasterControl'));
+const SiteExecution = lazy(() => import('./components/SiteExecution'));
+const FinancialControl = lazy(() => import('./components/FinancialControl'));
+const LiabilityTracker = lazy(() => import('./components/LiabilityTracker'));
+const DocumentManager = lazy(() => import('./components/DocumentManager'));
+const TaskManager = lazy(() => import('./components/TaskManager'));
+const MemberManager = lazy(() => import('./components/MemberManager'));
+const GanttChart = lazy(() => import('./components/GanttChart'));
+const FinancialAnalytics = lazy(() => import('./components/FinancialAnalytics'));
+const Procurement = lazy(() => import('./components/Procurement'));
+const SubcontractorPortal = lazy(() => import('./components/SubcontractorPortal'));
+const QCSafety = lazy(() => import('./components/QCSafety'));
+const Reporting = lazy(() => import('./components/Reporting'));
+const PhotoLogs = lazy(() => import('./components/PhotoLogs'));
+const EquipmentManager = lazy(() => import('./components/EquipmentManager'));
+const AttendanceManager = lazy(() => import('./components/AttendanceManager'));
+const ChangeOrderManager = lazy(() => import('./components/ChangeOrderManager'));
+const SustainabilityTracker = lazy(() => import('./components/SustainabilityTracker'));
+const BimViewer = lazy(() => import('./components/BimViewer'));
+const ClientPortal = lazy(() => import('./components/ClientPortal'));
+const VendorAnalytics = lazy(() => import('./components/VendorAnalytics'));
+const GeminiChat = lazy(() => import('./components/GeminiChat'));
+const CommentSection = lazy(() => import('./components/Collaboration').then(m => ({ default: m.CommentSection })));
 import { MOCK_PROJECTS } from './constants';
 import { ProjectState, ProjectDocument, DPR, UserRole, BOQItem, AiSuggestion, Material, Bill, ExtractedDPR, User, Task } from './types';
 import { parseBOQDocument, analyzeDocumentContent, processWhatsAppMessage } from './services/geminiService';
@@ -673,7 +676,16 @@ const App: React.FC = () => {
     >
       <div className="flex flex-col lg:flex-row gap-6">
         <div className="flex-1">
-          {renderContent()}
+          <Suspense fallback={
+            <div className="flex items-center justify-center h-64 bg-white/50 rounded-2xl border border-slate-200 border-dashed">
+              <div className="flex flex-col items-center gap-2">
+                <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Loading Module...</p>
+              </div>
+            </div>
+          }>
+            {renderContent()}
+          </Suspense>
         </div>
         
         {/* Collaboration Sidebar */}
