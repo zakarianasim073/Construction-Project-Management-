@@ -1,5 +1,5 @@
-
 🏗️ Construction Project Management — AI
+
 An AI-powered, all-in-one construction project management platform — from site execution to financial analytics, built to handle the full lifecycle of a construction project.
 
 🔗 Live Demo (Vercel): new-project-management-cyan.vercel.app
@@ -34,71 +34,85 @@ Budget creation and allocation across cost centres
 Track actual costs vs. planned budget at any level
 Manage payment certificates, invoices, and variations
 Set budget alerts and cost thresholds
+
 📈 Financial Analytics
 Visual breakdowns of spend by category, phase, and contractor
 Earned Value Management (EVM) metrics: CPI, SPI, EAC
 Cash flow forecasting and burn rate charts
 Export financial reports for clients or auditors
+
 🛒 Procurement
 Manage purchase orders, supplier quotes, and material requests
 Track order status from request → approval → delivery
 Maintain a vendor/supplier directory with performance ratings
 Link procurement to tasks and budget line items
+
 🚜 Equipment
 Log and track all plant and equipment on site
 Assign equipment to tasks and monitor utilisation
 Schedule maintenance and track downtime
 Record hire agreements and associated costs
+
 👷 Labor & Attendance
 Daily attendance tracking for direct labour and subcontractors
 Record hours worked per task or work package
 Monitor labour productivity and output vs. plan
 Generate weekly timesheets and payroll summaries
+
 🤝 Sub-contractors
 Manage subcontractor contracts, scopes, and rates
 Track subcontractor progress and milestone payments
 Store insurance certificates, compliance documents, and contacts
 Evaluate subcontractor performance per project
+
 🛡️ QC & Safety
 Create and manage quality inspection checklists
 Log non-conformance reports (NCRs) and corrective actions
 Record safety incidents, near misses, and toolbox talks
 Track permit-to-work (PTW) issuance and closures
+
 ✅ Tasks
 Create, assign, and prioritise tasks across the project
 Set dependencies, due dates, and completion criteria
 Filter by assignee, priority, status, or phase
 Get AI-generated task summaries and workload insights
+
 📅 Timeline
 Gantt-style project timeline with phase and milestone markers
 Drag-and-drop rescheduling with dependency enforcement
 Critical path highlighting for high-risk sequences
 Baseline vs. actual progress comparison
+
 🧊 BIM Viewer
 View Building Information Modelling (BIM) files directly in-browser
 Navigate 3D models linked to tasks and site elements
 Annotate models with issues or inspection notes
 Supports IFC and standard BIM formats
+
 📸 Photo Logs
 Upload and organise site photos by date, location, and category
 Tag photos to specific tasks, issues, or inspections
 Create a visual record of project progress over time
 Share photo reports with clients or stakeholders
+
 📑 Reports
 Generate PDF/CSV reports for any module (financial, progress, safety, etc.)
 Scheduled automated reports delivered by email
 AI-generated executive summaries from project data
 Custom report builder with configurable sections
+
 🌐 Client Portal
 Dedicated read-only view for clients and stakeholders
 Share project progress, photos, timelines, and financials
 Clients can raise queries or approve documents without system access
 Branded portal with project-specific access controls
+
 👥 Team
 Add team members and assign roles and permissions
 View team workload and availability across projects
 Manage role-based access: Admin, Manager, Engineer, Viewer
 Directory of all users with contact details and assignments
+
 📁 Documents
 Centralised storage for all project documents
 Version control with change history and approval workflows
@@ -112,6 +126,7 @@ Plan generation — Create a full project plan from a brief description
 Risk analysis — Identify scheduling or budget risks based on current data
 Report drafting — Auto-generate progress reports and client updates
 Smart suggestions — Recommended next actions based on project status
+
 🖥️ Tech Stack
 Layer	Technology
 Frontend	React.js + Tailwind CSS
@@ -121,6 +136,7 @@ Database	PostgreSQL / Supabase
 Auth	JWT-based Authentication
 File Storage	Cloudinary / AWS S3
 Hosting	Vercel (frontend) + Render (server)
+
 🚀 Getting Started
 Prerequisites
 Node.js v18+
@@ -179,6 +195,7 @@ new-project-management-/
 ├── .env.example
 ├── package.json
 └── README.md
+
 🛣️ Roadmap
  Offline mode for remote/low-connectivity sites
  Mobile app (React Native) for site operatives
@@ -188,10 +205,12 @@ new-project-management-/
  AI cost estimation from project scope descriptions
  Multi-language support (Arabic, French, Urdu)
  Integration with accounting software (Xero, QuickBooks)
+
 ⚠️ Known Limitations
 Initial load on Render's free tier may take 30–60 seconds (cold start)
 BIM Viewer currently supports limited file formats
 File uploads capped at 10MB per file in the current version
+
 🤝 Contributing
 Fork the repo
 Create a branch: git checkout -b feature/your-feature
