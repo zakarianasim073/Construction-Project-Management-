@@ -91,7 +91,7 @@ const GeminiChat: React.FC<GeminiChatProps> = ({ currentUser, projectContext }) 
   };
 
   return (
-    <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end">
+    <div className="fixed bottom-8 right-8 z-50 flex flex-col items-end">
       <AnimatePresence>
         {isOpen && (
           <motion.div
@@ -100,33 +100,38 @@ const GeminiChat: React.FC<GeminiChatProps> = ({ currentUser, projectContext }) 
               opacity: 1, 
               scale: 1, 
               y: 0,
-              height: isMinimized ? '64px' : '600px',
-              width: isMinimized ? '300px' : '400px'
+              height: isMinimized ? '72px' : '650px',
+              width: isMinimized ? '320px' : '440px'
             }}
             exit={{ opacity: 0, scale: 0.9, y: 20 }}
-            className="bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden mb-4 flex flex-col max-h-[80vh] w-[90vw] md:w-[400px]"
+            className="bg-white rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.2)] border border-slate-200 overflow-hidden mb-6 flex flex-col max-h-[85vh] w-[90vw] md:w-[440px] backdrop-blur-xl"
           >
             {/* Header */}
-            <div className="p-4 bg-blue-600 text-white flex items-center justify-between shrink-0">
-              <div className="flex items-center gap-2">
-                <div className="p-1.5 bg-white/20 rounded-lg">
-                  <Sparkles className="w-4 h-4 text-white" />
+            <div className="p-5 bg-slate-900 text-white flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-blue-600 rounded-xl shadow-lg shadow-blue-500/20">
+                  <Sparkles className="w-5 h-5 text-white" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-sm leading-none">BuildTrack AI</h3>
-                  <span className="text-[10px] text-blue-100 animate-pulse">Online & Ready</span>
+                  <h3 className="font-black text-sm leading-none tracking-tight">BuildTrack Intelligence</h3>
+                  <div className="flex items-center gap-1.5 mt-1.5">
+                    <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></div>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Active Assistant</span>
+                  </div>
                 </div>
               </div>
               <div className="flex items-center gap-1">
                 <button 
                   onClick={() => setIsMinimized(!isMinimized)}
-                  className="p-1.5 hover:bg-white/10 rounded-lg transition-colors"
+                  className="p-2 hover:bg-white/10 rounded-xl transition-colors text-slate-400 hover:text-white"
+                  aria-label={isMinimized ? "Maximize" : "Minimize"}
                 >
                   {isMinimized ? <Maximize2 className="w-4 h-4" /> : <Minimize2 className="w-4 h-4" />}
                 </button>
                 <button 
                   onClick={() => setIsOpen(false)}
-                  className="p-1.5 hover:bg-white/10 rounded-lg transition-colors"
+                  className="p-2 hover:bg-white/10 rounded-xl transition-colors text-slate-400 hover:text-white"
+                  aria-label="Close chat"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -138,29 +143,29 @@ const GeminiChat: React.FC<GeminiChatProps> = ({ currentUser, projectContext }) 
                 {/* Messages */}
                 <div 
                   ref={scrollRef}
-                  className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50"
+                  className="flex-1 overflow-y-auto p-6 space-y-6 bg-slate-50/50 scrollbar-thin"
                 >
                   {messages.map((m, i) => (
                     <div 
                       key={i} 
-                      className={`flex gap-3 ${m.role === 'user' ? 'flex-row-reverse' : ''}`}
+                      className={`flex gap-4 ${m.role === 'user' ? 'flex-row-reverse' : ''}`}
                     >
-                      <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
-                        m.role === 'user' ? 'bg-blue-600 text-white' : 'bg-white border border-slate-200 text-blue-600 shadow-sm'
+                      <div className={`w-9 h-9 rounded-2xl flex items-center justify-center shrink-0 shadow-sm ${
+                        m.role === 'user' ? 'bg-slate-900 text-white' : 'bg-white border border-slate-200 text-blue-600'
                       }`}>
-                        {m.role === 'user' ? <UserIcon className="w-4 h-4" /> : <Bot className="w-4 h-4" />}
+                        {m.role === 'user' ? <UserIcon className="w-5 h-5" /> : <Bot className="w-5 h-5" />}
                       </div>
-                      <div className={`max-w-[80%] rounded-2xl p-3 text-sm shadow-sm ${
+                      <div className={`max-w-[85%] rounded-2xl p-4 text-sm shadow-sm ${
                         m.role === 'user' 
                           ? 'bg-blue-600 text-white rounded-tr-none' 
                           : 'bg-white text-slate-700 rounded-tl-none border border-slate-100'
                       }`}>
-                        <div className="prose prose-sm max-w-none prose-slate">
+                        <div className={`prose prose-sm max-w-none ${m.role === 'user' ? 'prose-invert' : 'prose-slate'}`}>
                           <ReactMarkdown
                              components={{
-                              p: ({ children }) => <p className="mb-0">{children}</p>,
-                              ul: ({ children }) => <ul className="my-1 list-disc pl-4">{children}</ul>,
-                              ol: ({ children }) => <ol className="my-1 list-decimal pl-4">{children}</ol>,
+                              p: ({ children }) => <p className="mb-0 leading-relaxed font-medium">{children}</p>,
+                              ul: ({ children }) => <ul className="my-2 list-disc pl-4 space-y-1">{children}</ul>,
+                              ol: ({ children }) => <ol className="my-2 list-decimal pl-4 space-y-1">{children}</ol>,
                             }}
                           >
                             {m.parts[0].text}
@@ -170,39 +175,47 @@ const GeminiChat: React.FC<GeminiChatProps> = ({ currentUser, projectContext }) 
                     </div>
                   ))}
                   {isLoading && (
-                    <div className="flex gap-3">
-                      <div className="w-8 h-8 rounded-full bg-white border border-slate-200 text-blue-600 flex items-center justify-center shrink-0 shadow-sm">
-                        <Bot className="w-4 h-4" />
+                    <div className="flex gap-4">
+                      <div className="w-9 h-9 rounded-2xl bg-white border border-slate-200 text-blue-600 flex items-center justify-center shrink-0 shadow-sm">
+                        <Bot className="w-5 h-5" />
                       </div>
-                      <div className="bg-white border border-slate-100 rounded-2xl rounded-tl-none p-3 shadow-sm">
-                        <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
+                      <div className="bg-white border border-slate-100 rounded-2xl rounded-tl-none p-4 shadow-sm">
+                        <div className="flex gap-1.5">
+                          <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce"></div>
+                          <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce [animation-delay:-0.15s]"></div>
+                          <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce [animation-delay:-0.3s]"></div>
+                        </div>
                       </div>
                     </div>
                   )}
                 </div>
 
                 {/* Input */}
-                <div className="p-4 bg-white border-t border-slate-100 shrink-0">
-                  <div className="relative">
+                <div className="p-6 bg-white border-t border-slate-100 shrink-0">
+                  <div className="relative group">
                     <input 
                       type="text"
-                      placeholder="Ask BuildTrack AI..."
+                      placeholder="Ask about project timeline, risks or budget..."
                       value={input}
                       onChange={(e) => setInput(e.target.value)}
                       onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-                      className="w-full pl-4 pr-12 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-600 outline-none text-sm transition-all"
+                      className="w-full pl-5 pr-14 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-blue-600 focus:bg-white outline-none text-sm transition-all shadow-inner"
                     />
                     <button 
                       onClick={handleSend}
                       disabled={!input.trim() || isLoading}
-                      className="absolute right-1.5 top-1/2 -translate-y-1/2 p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all disabled:bg-slate-300 disabled:shadow-none shadow-lg shadow-blue-200"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 p-2.5 bg-slate-900 text-white rounded-xl hover:bg-blue-600 transition-all disabled:bg-slate-200 disabled:text-slate-400 shadow-xl active:scale-95"
+                      aria-label="Send message"
                     >
-                      <Send className="w-4 h-4" />
+                      <Send className="w-5 h-5" />
                     </button>
                   </div>
-                  <p className="text-[10px] text-slate-400 mt-2 text-center">
-                    BuildTrack AI may provide inaccurate information. Check key facts.
-                  </p>
+                  <div className="mt-3 flex items-center justify-center gap-2">
+                    <Sparkles className="w-3 h-3 text-slate-300" />
+                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
+                      Powered by BuildTrack AI
+                    </p>
+                  </div>
                 </div>
               </>
             )}
@@ -217,11 +230,12 @@ const GeminiChat: React.FC<GeminiChatProps> = ({ currentUser, projectContext }) 
           if (!isOpen) setIsOpen(true);
           setIsMinimized(false);
         }}
-        className={`w-14 h-14 rounded-full flex items-center justify-center shadow-2xl transition-colors ${
-          isOpen ? 'bg-white text-blue-600 border border-blue-100' : 'bg-blue-600 text-white'
+        className={`w-16 h-16 rounded-2xl flex items-center justify-center shadow-[0_15px_40px_rgba(37,99,235,0.3)] transition-all ${
+          isOpen ? 'bg-white text-slate-900 border border-slate-100 rotate-90 scale-90' : 'bg-slate-900 text-white'
         }`}
+        aria-label="Toggle BuildTrack AI"
       >
-        <Sparkles className="w-6 h-6" />
+        {isOpen ? <X className="w-8 h-8" /> : <Sparkles className="w-8 h-8" />}
       </motion.button>
     </div>
   );
