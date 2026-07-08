@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, memo } from 'react';
 import { ProjectState, Priority, AiSuggestion, BOQItem, DPR, RiskAssessment, WeatherForecast } from '../types';
 import { 
   TrendingUp, 
@@ -41,7 +41,7 @@ const getDaysDiff = (d1: string, d2: string) => {
   return Math.max(1, (date2.getTime() - date1.getTime()) / (1000 * 3600 * 24));
 };
 
-const ProjectGantt: React.FC<{ data: ProjectState }> = ({ data }) => {
+const ProjectGantt = memo(({ data }: { data: ProjectState }) => {
   const projectStart = new Date(data.startDate);
   const projectEnd = new Date(data.endDate);
   const totalDuration = getDaysDiff(data.startDate, data.endDate);
@@ -272,12 +272,12 @@ const Dashboard: React.FC<DashboardProps> = ({ data, onApplySuggestion, onDismis
     .sort((a, b) => b.pendingValue - a.pendingValue)
     .slice(0, 5);
 
-  const chartData = [
+  const chartData = useMemo(() => [
     { name: 'Planned', amount: totalPlannedValue },
     { name: 'Executed', amount: totalExecutedValue },
     { name: 'Billed', amount: totalBilled },
     { name: 'Liabilities', amount: totalLiabilities },
-  ];
+  ], [totalPlannedValue, totalExecutedValue, totalBilled, totalLiabilities]);
 
   const handleGenerateInsights = async () => {
     setLoadingInsight(true);
@@ -676,4 +676,4 @@ const Dashboard: React.FC<DashboardProps> = ({ data, onApplySuggestion, onDismis
   );
 };
 
-export default Dashboard;
+export default memo(Dashboard);

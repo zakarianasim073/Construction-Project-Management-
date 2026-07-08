@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { memo, useMemo } from 'react';
 import { BOQItem, Bill } from '../types';
 import { 
   BarChart, 
@@ -24,24 +24,24 @@ interface FinancialAnalyticsProps {
 }
 
 const FinancialAnalytics: React.FC<FinancialAnalyticsProps> = ({ boq, bills }) => {
-  const totalBudget = boq.reduce((acc, item) => acc + (item.plannedQty * item.plannedUnitCost), 0);
-  const totalActual = bills.reduce((acc, bill) => acc + bill.amount, 0);
-  const totalContract = boq.reduce((acc, item) => acc + (item.plannedQty * item.rate), 0);
+  const totalBudget = useMemo(() => boq.reduce((acc, item) => acc + (item.plannedQty * item.plannedUnitCost), 0), [boq]);
+  const totalActual = useMemo(() => bills.reduce((acc, bill) => acc + bill.amount, 0), [bills]);
+  const totalContract = useMemo(() => boq.reduce((acc, item) => acc + (item.plannedQty * item.rate), 0), [boq]);
   
-  const budgetVsActualData = boq.slice(0, 5).map(item => ({
+  const budgetVsActualData = useMemo(() => boq.slice(0, 5).map(item => ({
     name: item.description.substring(0, 15) + '...',
     Budget: item.plannedQty * item.plannedUnitCost,
     Actual: (item.executedQty / item.plannedQty) * (item.plannedQty * item.plannedUnitCost) * 1.1 // Simulated actual
-  }));
+  })), [boq]);
 
   const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
 
-  const expenseByCategory = [
+  const expenseByCategory = useMemo(() => [
     { name: 'Material', value: bills.filter(b => b.category === 'MATERIAL').reduce((a, b) => a + b.amount, 0) || 450000 },
     { name: 'Labor', value: bills.filter(b => b.category === 'LABOR').reduce((a, b) => a + b.amount, 0) || 280000 },
     { name: 'Equipment', value: bills.filter(b => b.category === 'EQUIPMENT').reduce((a, b) => a + b.amount, 0) || 120000 },
     { name: 'Overhead', value: bills.filter(b => b.category === 'OVERHEAD').reduce((a, b) => a + b.amount, 0) || 85000 },
-  ];
+  ], [bills]);
 
   return (
     <div className="space-y-6">
@@ -140,4 +140,4 @@ const FinancialAnalytics: React.FC<FinancialAnalyticsProps> = ({ boq, bills }) =
   );
 };
 
-export default FinancialAnalytics;
+export default memo(FinancialAnalytics);

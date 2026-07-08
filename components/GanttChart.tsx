@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { memo } from 'react';
 import { Task } from '../types';
 import { Calendar, ChevronLeft, ChevronRight, Filter } from 'lucide-react';
 
@@ -130,4 +130,4 @@ const GanttChart: React.FC<GanttChartProps> = ({ tasks }) => {
   );
 };
 
-export default GanttChart;
+export default memo(GanttChart);
