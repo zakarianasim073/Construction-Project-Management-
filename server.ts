@@ -4,10 +4,22 @@ import { createServer as createViteServer } from 'vite';
 import path from 'path';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
+import helmet from 'helmet';
+
+const sanitizeUser = (user: any) => {
+  if (!user) return null;
+  const { passwordHash, ...sanitized } = user;
+  return sanitized;
+};
 
 async function startServer() {
   const app = express();
   const PORT = 3000;
+
+  // Security Headers
+  app.use(helmet({
+    contentSecurityPolicy: false, // Disable CSP for easier Vite integration in dev
+  }));
 
   app.use(express.json({ limit: '50mb' }));
 
@@ -44,7 +56,15 @@ async function startServer() {
   });
 
   // --- AUTH ROUTES ---
-  const JWT_SECRET = process.env.JWT_SECRET || '5aeb6c98c7622543d05e89904d09aed7b33f45a616204b31d4a18de8397c3e7d';
+  const JWT_SECRET = process.env.JWT_SECRET;
+  if (!JWT_SECRET) {
+    if (process.env.NODE_ENV === 'production') {
+      console.error('CRITICAL: JWT_SECRET environment variable is missing.');
+      process.exit(1);
+    }
+    console.warn('WARNING: JWT_SECRET is missing, using insecure default for development only.');
+  }
+  const ACTUAL_JWT_SECRET = JWT_SECRET || 'insecure-dev-secret';
 
   app.post('/api/auth/signup', async (req, res) => {
     const { name, email, password, role } = req.body;
@@ -87,8 +107,8 @@ async function startServer() {
         return res.status(401).json({ error: "Invalid credentials" });
       }
 
-      const token = jwt.sign({ uid: user.uid, email: user.email, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
-      res.json({ token, user });
+      const token = jwt.sign({ uid: user.uid, email: user.email, role: user.role }, ACTUAL_JWT_SECRET, { expiresIn: '7d' });
+      res.json({ token, user: sanitizeUser(user) });
     } catch (e) {
       res.status(500).json({ error: "Login failed" });
     }
@@ -99,7 +119,7 @@ async function startServer() {
     const token = authHeader && authHeader.split(' ')[1];
     if (!token) return res.status(401).json({ error: "Missing token" });
 
-    jwt.verify(token, JWT_SECRET, async (err: any, decoded: any) => {
+    jwt.verify(token, ACTUAL_JWT_SECRET, async (err: any, decoded: any) => {
       if (err) return res.status(403).json({ error: "Invalid token" });
       try {
           let user;
@@ -109,7 +129,7 @@ async function startServer() {
              user = await mongoose.connection.db.collection('users').findOne({ uid: decoded.uid });
           }
           if (!user) return res.status(404).json({ error: "User not found" });
-          res.json({ user });
+          res.json({ user: sanitizeUser(user) });
       } catch (e) {
           res.status(500).json({ error: "Server error" });
       }
@@ -122,7 +142,7 @@ async function startServer() {
     const token = authHeader && authHeader.split(' ')[1];
     if (token == null) return res.status(401).json({ error: "Unauthorized" });
 
-    jwt.verify(token, JWT_SECRET, (err: any, user: any) => {
+    jwt.verify(token, ACTUAL_JWT_SECRET, (err: any, user: any) => {
       if (err) return res.status(403).json({ error: "Forbidden" });
       (req as any).user = user;
       next();
@@ -130,6 +150,13 @@ async function startServer() {
   };
 
   // Protect all API routes under /api/collections
+  app.use('/api/collections/:name', (req, res, next) => {
+    // Explicitly block generic access to the users collection
+    if (req.params.name === 'users') {
+      return res.status(403).json({ error: 'Unauthorized access to sensitive collection' });
+    }
+    next();
+  });
   app.use('/api/collections', authenticateToken);
 
   app.get('/api/collections/:name', async (req, res) => {
